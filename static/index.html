@@ -1338,10 +1338,14 @@
                 const response = await fetch(url, options);
                 clearTimeout(timeoutId);
                 
-                // Handle 401 Unauthorized globally
+                // Handle 401 Unauthorized globally (except for auth/login)
                 if (response.status === 401) {
-                    handleSessionExpired();
-                    throw new Error("Session expired. Please log in again.");
+                    if (endpoint.includes('/auth/login')) {
+                        // Let incorrect credentials pass through to be handled by normal code
+                    } else {
+                        handleSessionExpired();
+                        throw new Error("Session expired. Please log in again.");
+                    }
                 }
                 
                 // Handle 429 Rate Limiting globally
