@@ -255,6 +255,7 @@ def delete_document(document_id: str, current_user: dict = Depends(require_admin
 
 @router.get("/debug-config")
 def debug_config(current_user: dict = Depends(require_admin)):
+    import os
     from app.config import MOCK_EMBEDDINGS, GEMINI_API_KEY
     from app.services.embedding_service import embedding_service
     from app.services.llm_service import llm_service
@@ -263,11 +264,14 @@ def debug_config(current_user: dict = Depends(require_admin)):
     key_prefix = GEMINI_API_KEY[:6] if key_length > 6 else ""
     key_suffix = GEMINI_API_KEY[-4:] if key_length > 4 else ""
     
+    env_keys = list(os.environ.keys())
+    
     return {
         "mock_embeddings": MOCK_EMBEDDINGS,
         "api_key_length": key_length,
         "api_key_prefix": key_prefix,
         "api_key_suffix": key_suffix,
         "embedding_service_configured": embedding_service.client_configured,
-        "llm_service_configured": llm_service.client_configured
+        "llm_service_configured": llm_service.client_configured,
+        "env_keys": env_keys
     }
