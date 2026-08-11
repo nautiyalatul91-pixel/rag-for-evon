@@ -78,6 +78,25 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"error": "An unexpected server error occurred. Please contact the administrator."}
     )
 
+@app.on_event("startup")
+def startup_event():
+    from app.services.embedding_service import embedding_service
+    from app.services.llm_service import llm_service
+    from app.config import MOCK_EMBEDDINGS, GEMINI_API_KEY
+    
+    logger.info("========================================")
+    logger.info("APPLICATION STARTUP CONFIGURATION CHECK")
+    logger.info("MOCK_EMBEDDINGS: %s", MOCK_EMBEDDINGS)
+    
+    key_length = len(GEMINI_API_KEY) if GEMINI_API_KEY else 0
+    key_prefix = GEMINI_API_KEY[:6] if key_length > 6 else ""
+    key_suffix = GEMINI_API_KEY[-4:] if key_length > 4 else ""
+    logger.info("GEMINI_API_KEY Length: %d (Starts with: '%s', Ends with: '%s')", key_length, key_prefix, key_suffix)
+    
+    logger.info("EmbeddingService Client Configured: %s", embedding_service.client_configured)
+    logger.info("LLMService Client Configured: %s", llm_service.client_configured)
+    logger.info("========================================")
+
 @app.get("/")
 def read_root():
     """Serve the frontend single-page application."""
