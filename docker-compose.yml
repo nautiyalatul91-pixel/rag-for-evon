@@ -12,4 +12,15 @@ services:
       - ./data:/app/data
     env_file:
       - .env
+    environment:
+      - GEMINI_API_KEY
+      - MOCK_EMBEDDINGS
+      - JWT_SECRET_KEY
+      - JWT_ALGORITHM
+      - RETRIEVAL_THRESHOLD
+      - ALLOWED_ORIGINS
+      - CHROMA_DB_PATH
+      - SQLITE_DB_PATH
+      - PORT
+      - HOST
     restart: unless-stopped
