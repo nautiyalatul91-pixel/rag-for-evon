@@ -252,3 +252,22 @@ def delete_document(document_id: str, current_user: dict = Depends(require_admin
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error during deletion: {str(e)}"
         )
+
+@router.get("/debug-config")
+def debug_config(current_user: dict = Depends(require_admin)):
+    from app.config import MOCK_EMBEDDINGS, GEMINI_API_KEY
+    from app.services.embedding_service import embedding_service
+    from app.services.llm_service import llm_service
+    
+    key_length = len(GEMINI_API_KEY) if GEMINI_API_KEY else 0
+    key_prefix = GEMINI_API_KEY[:6] if key_length > 6 else ""
+    key_suffix = GEMINI_API_KEY[-4:] if key_length > 4 else ""
+    
+    return {
+        "mock_embeddings": MOCK_EMBEDDINGS,
+        "api_key_length": key_length,
+        "api_key_prefix": key_prefix,
+        "api_key_suffix": key_suffix,
+        "embedding_service_configured": embedding_service.client_configured,
+        "llm_service_configured": llm_service.client_configured
+    }
