@@ -1,0 +1,1880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise RAG Knowledge Assistant</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #080b11;
+            --bg-secondary: #0f131a;
+            --card-bg: rgba(22, 28, 38, 0.7);
+            --card-border: rgba(99, 102, 241, 0.12);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.35);
+            --accent: #a855f7;
+            --accent-glow: rgba(168, 85, 247, 0.35);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+        }
+
+        button, input, select, textarea {
+            font-family: inherit;
+        }
+
+        /* Notifications style */
+        #notification-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .toast {
+            background: rgba(15, 23, 42, 0.9);
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.3s ease-out forwards;
+            transition: all 0.3s ease;
+        }
+
+        .toast.success { border-left-color: var(--success); }
+        .toast.danger { border-left-color: var(--danger); }
+        .toast.warning { border-left-color: var(--warning); }
+
+        .toast-content {
+            flex-grow: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        /* Views management */
+        .view-section {
+            display: none;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .view-section.active {
+            display: flex;
+        }
+
+        /* 1. Login View Styling */
+        #login-view {
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 440px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-logo h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .login-logo p {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(8, 11, 17, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .form-select {
+            width: 100%;
+            background: rgba(8, 11, 17, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 14px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            opacity: 0.95;
+            box-shadow: 0 0 12px var(--primary-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .login-toggle {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .login-toggle a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-toggle a:hover {
+            text-decoration: underline;
+        }
+
+        /* 2. Logged-in App Layout */
+        #main-app-layout.active {
+            flex-grow: 1;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar navigation */
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 19, 26, 0.9);
+            border-right: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            flex-shrink: 0;
+            backdrop-filter: blur(16px);
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+
+        .sidebar-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .nav-item.active {
+            color: white;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+        }
+
+        .user-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: white;
+            font-size: 14px;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .user-role-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--accent);
+            align-self: flex-start;
+            margin-top: 2px;
+            text-transform: uppercase;
+        }
+
+        .user-role-badge.admin {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger);
+        }
+
+        /* Content panels container */
+        .content-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tab-panel {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .tab-panel.active {
+            display: flex;
+        }
+
+        /* 3. Chat Room styling */
+        .chat-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 19, 26, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .chat-header-title h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .chat-header-title p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .chat-reset-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chat-reset-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message-bubble {
+            max-width: 75%;
+            padding: 16px 20px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 14px;
+            animation: slideUp 0.3s ease-out;
+            position: relative;
+        }
+
+        .message-bubble.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .message-bubble.assistant {
+            align-self: flex-start;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+            backdrop-filter: blur(8px);
+        }
+
+        .message-time {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: right;
+            margin-top: 8px;
+        }
+
+        .message-bubble.assistant .message-time {
+            color: var(--text-muted);
+        }
+
+        /* Citations styling */
+        .citations-container {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .message-bubble.assistant .citations-container {
+            border-top-color: var(--card-border);
+        }
+
+        .citations-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .citations-list {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .citation-badge {
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            padding: 3px 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .citation-badge:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-input-container {
+            padding: 20px 30px 30px 30px;
+            border-top: 1px solid var(--card-border);
+            background: rgba(15, 19, 26, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .chat-input-wrapper {
+            background: rgba(8, 11, 17, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            display: flex;
+            align-items: flex-end;
+            padding: 8px 12px;
+            transition: all 0.2s;
+        }
+
+        .chat-input-wrapper:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .chat-textarea {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: 14px;
+            resize: none;
+            height: 44px;
+            max-height: 200px;
+            padding: 10px 8px;
+            outline: none;
+            line-height: 1.4;
+        }
+
+        .chat-send-btn {
+            background: var(--primary);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            margin-bottom: 4px;
+            margin-left: 8px;
+        }
+
+        .chat-send-btn:hover {
+            opacity: 0.95;
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .chat-send-btn:disabled {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Pulsing LLM load indicator */
+        .typing-loader {
+            display: flex;
+            gap: 4px;
+            padding: 10px 14px;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+        }
+
+        .typing-loader span {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-loader span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-loader span:nth-child(2) { animation-delay: -0.16s; }
+
+        /* Empty state view */
+        .chat-empty-state {
+            margin: auto;
+            text-align: center;
+            max-width: 420px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .chat-empty-state svg {
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .chat-empty-state h4 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .chat-empty-state p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* 4. Admin View / Console Styling */
+        .admin-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 40px;
+        }
+
+        .admin-header {
+            margin-bottom: 32px;
+        }
+
+        .admin-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .admin-header p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 1024px) {
+            .admin-grid {
+                grid-template-columns: 350px 1fr;
+            }
+        }
+
+        /* Card blocks */
+        .admin-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 24px;
+            backdrop-filter: blur(8px);
+        }
+
+        .admin-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        /* Upload Zone styles */
+        .upload-zone {
+            border: 2px dashed var(--card-border);
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.01);
+            transition: all 0.2s;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.03);
+        }
+
+        .upload-zone svg {
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .upload-zone h4 {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .upload-zone p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Upload queue results */
+        .upload-results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .upload-result-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .upload-file-info {
+            min-width: 0;
+            flex-grow: 1;
+        }
+
+        .upload-file-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .upload-file-status {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .upload-result-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .upload-result-badge.success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .upload-result-badge.duplicate { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        .upload-result-badge.failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .upload-result-badge.pending { background: rgba(99, 102, 241, 0.15); color: var(--primary); }
+
+        /* Documents database table */
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            background: rgba(8, 11, 17, 0.4);
+        }
+
+        .docs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .docs-table th {
+            background: rgba(15, 19, 26, 0.6);
+            padding: 14px 18px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--card-border);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        .docs-table td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--card-border);
+            color: var(--text-main);
+        }
+
+        .docs-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .docs-table tr:hover td {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .doc-name {
+            font-weight: 600;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .doc-date {
+            color: var(--text-muted);
+        }
+
+        .doc-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            text-transform: uppercase;
+        }
+
+        .doc-delete-btn {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .doc-delete-btn:hover {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+        }
+
+        /* Confirmation dialog custom overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .confirm-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: scaleIn 0.2s ease-out;
+        }
+
+        .confirm-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: white;
+        }
+
+        .confirm-message {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            border: none;
+            color: white;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-danger:hover {
+            opacity: 0.95;
+        }
+
+        /* Common utilities */
+        .empty-table-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(8px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="notification-container"></div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="confirm-modal">
+            <div id="modal-title" class="confirm-title">Delete Document</div>
+            <div id="modal-message" class="confirm-message">Are you sure you want to delete this document? This action cannot be undone.</div>
+            <div class="confirm-actions">
+                <button id="modal-cancel-btn" class="btn-secondary">Cancel</button>
+                <button id="modal-confirm-btn" class="btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. LOGIN / REGISTRATION VIEW -->
+    <section id="login-view" class="view-section active">
+        <div class="login-card">
+            <div class="login-logo">
+                <h1>RAG Knowledge Engine</h1>
+                <p id="login-subtitle">Sign in to query corporate policy</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="login-username">Username</label>
+                    <input class="form-input" type="text" id="login-username" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="login-password">Password</label>
+                    <input class="form-input" type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="btn">
+                    <span>Sign In</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+            </form>
+
+            <!-- Register Form (Toggled via JS) -->
+            <form id="register-form" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="register-username">Username</label>
+                    <input class="form-input" type="text" id="register-username" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-password">Password</label>
+                    <input class="form-input" type="password" id="register-password" placeholder="Choose a password" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="register-role">System Role</label>
+                    <select class="form-select" id="register-role">
+                        <option value="employee">Employee (Chat Access)</option>
+                        <option value="admin">Administrator (Upload & Delete Access)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">
+                    <span>Create Account</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                </button>
+            </form>
+
+            <div class="login-toggle">
+                <span id="toggle-message">Don't have an account?</span>
+                <a href="#" id="toggle-auth-view-btn">Register</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. MAIN APPLICATION LAYOUT (CHAT + ADMIN PANEL) -->
+    <section id="main-app-layout" class="view-section">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#sidebar-grad)" stroke-width="2.5">
+                    <defs>
+                        <linearGradient id="sidebar-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1" />
+                            <stop offset="100%" stop-color="#a855f7" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                </svg>
+                <h2>RAG Portal</h2>
+            </div>
+
+            <ul class="nav-list">
+                <li id="nav-chat" class="nav-item active">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Knowledge Chat</span>
+                </li>
+                <li id="nav-admin" class="nav-item" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
+                    <span>Admin Panel</span>
+                </li>
+            </ul>
+
+            <div class="user-panel">
+                <div class="user-info">
+                    <div id="user-avatar" class="avatar">U</div>
+                    <div class="user-details">
+                        <span id="user-display-name" class="user-name">Username</span>
+                        <span id="user-display-role" class="user-role-badge">Role</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="logout-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    <span>Log Out</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content Panel Router -->
+        <div class="content-area">
+            
+            <!-- CHAT PANEL VIEW -->
+            <div id="panel-chat" class="tab-panel active">
+                <div class="chat-header">
+                    <div class="chat-header-title">
+                        <h3>Knowledge Chat Assistant</h3>
+                        <p id="chat-session-subtitle">Ask policies or questions based on ingested materials.</p>
+                    </div>
+                    <button id="reset-chat-btn" class="chat-reset-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                        <span>Reset Session</span>
+                    </button>
+                </div>
+
+                <div id="chat-messages-container" class="chat-messages">
+                    <!-- Dynamic chat messages go here -->
+                    <div class="chat-empty-state" id="chat-empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        <h4>Start a Conversation</h4>
+                        <p>Ask a question about employee leave policies, travel, lead management, or any other company documentation uploaded by the admin.</p>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea id="chat-input-textarea" class="chat-textarea" placeholder="Type your query here (Enter to send, Shift+Enter for new line)..." rows="1"></textarea>
+                        <button id="chat-send-btn" class="chat-send-btn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADMIN PANEL VIEW -->
+            <div id="panel-admin" class="tab-panel">
+                <div class="admin-container">
+                    <div class="admin-header">
+                        <h2>Admin Control Center</h2>
+                        <p>Manage documents stored in the company knowledge base index.</p>
+                    </div>
+
+                    <div class="admin-grid">
+                        <!-- Upload block -->
+                        <div class="admin-card">
+                            <h3>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                Ingest New Document
+                            </h3>
+                            <div id="drop-zone" class="upload-zone">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 15c.7-1.2 1-2.5.7-3.9-.6-3-3.1-5.2-6.1-5.1-1 .1-2 .4-2.8 1-1.3-1.8-3.5-3-6-2.7-3.8.5-6.7 3.8-6.7 7.7 0 1.2.3 2.4.9 3.4"></path><path d="M12 12v9"></path><path d="M8 16l4-4 4 4"></path></svg>
+                                <h4>Drag & Drop Files</h4>
+                                <p>PDF, DOCX, XLSX, TXT up to 20MB</p>
+                                <input type="file" id="file-input" multiple accept=".pdf,.docx,.xlsx,.txt">
+                            </div>
+                            
+                            <div id="upload-results-container" class="upload-results-list">
+                                <!-- Upload queues appear here -->
+                            </div>
+                        </div>
+
+                        <!-- Documents DB List -->
+                        <div class="admin-card">
+                            <h3>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                Knowledge Base Index
+                            </h3>
+                            <div class="table-wrapper">
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Filename</th>
+                                            <th>Uploaded At</th>
+                                            <th>Chunks</th>
+                                            <th>Status</th>
+                                            <th style="width: 60px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="docs-table-body">
+                                        <tr>
+                                            <td colspan="5" class="empty-table-state">Loading document index...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- JS Logic -->
+    <script>
+        // --- State Management ---
+        let jwtToken = '';
+        let userProfile = null;
+        let activeConversationId = '';
+        let isLoginViewActive = true;
+        let isUploading = false;
+        let docToDeleteId = null;
+        let docToDeleteName = '';
+
+        // --- DOM Elements ---
+        const loginView = document.getElementById('login-view');
+        const mainAppLayout = document.getElementById('main-app-layout');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loginUsernameInput = document.getElementById('login-username');
+        const loginPasswordInput = document.getElementById('login-password');
+        const registerUsernameInput = document.getElementById('register-username');
+        const registerPasswordInput = document.getElementById('register-password');
+        const registerRoleSelect = document.getElementById('register-role');
+        const toggleAuthViewBtn = document.getElementById('toggle-auth-view-btn');
+        const toggleMessage = document.getElementById('toggle-message');
+        const loginSubtitle = document.getElementById('login-subtitle');
+
+        const navChat = document.getElementById('nav-chat');
+        const navAdmin = document.getElementById('nav-admin');
+        const panelChat = document.getElementById('panel-chat');
+        const panelAdmin = document.getElementById('panel-admin');
+        const userAvatar = document.getElementById('user-avatar');
+        const userDisplayName = document.getElementById('user-display-name');
+        const userDisplayRole = document.getElementById('user-display-role');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        const chatMessagesContainer = document.getElementById('chat-messages-container');
+        const chatInputTextarea = document.getElementById('chat-input-textarea');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const resetChatBtn = document.getElementById('reset-chat-btn');
+        const chatSessionSubtitle = document.getElementById('chat-session-subtitle');
+        const chatEmptyState = document.getElementById('chat-empty-state');
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadResultsContainer = document.getElementById('upload-results-container');
+        const docsTableBody = document.getElementById('docs-table-body');
+
+        // Modal Confirmation DOM
+        const confirmModal = document.getElementById('confirm-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+
+        // --- Notifications ---
+        function showNotification(title, message, type = 'info') {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            // Build simple UI
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto close after 5 seconds
+            const autoTimer = setTimeout(() => {
+                dismissToast(toast);
+            }, 5000);
+            
+            toast.querySelector('.toast-close').addEventListener('click', () => {
+                clearTimeout(autoTimer);
+                dismissToast(toast);
+            });
+        }
+
+        function dismissToast(toast) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(50px)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+
+        // --- HTTP Fetch API Wrapper ---
+        async function apiFetch(endpoint, options = {}) {
+            const url = endpoint;
+            
+            // Inject Auth Header if session token exists
+            options.headers = options.headers || {};
+            if (jwtToken) {
+                options.headers['Authorization'] = `Bearer ${jwtToken}`;
+            }
+            
+            // Set JSON Content-Type if request contains a body and isn't FormData
+            if (options.body && !(options.body instanceof FormData) && !options.headers['Content-Type']) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+
+            // Implement client-side timeout of 30 seconds
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            options.signal = controller.signal;
+
+            try {
+                const response = await fetch(url, options);
+                clearTimeout(timeoutId);
+                
+                // Handle 401 Unauthorized globally
+                if (response.status === 401) {
+                    handleSessionExpired();
+                    throw new Error("Session expired. Please log in again.");
+                }
+                
+                // Handle 429 Rate Limiting globally
+                if (response.status === 429) {
+                    showNotification("Rate Limit Exceeded", "You are sending messages too fast. Maximum 20 requests per minute are allowed.", "warning");
+                    throw new Error("Rate limit exceeded. Please wait a moment.");
+                }
+
+                // Try to parse as JSON; if it fails, throw original HTTP error status
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+                    }
+                    throw jsonErr;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(data.error || data.detail || `HTTP Error ${response.status}`);
+                }
+                
+                return data;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                if (err.name === 'AbortError') {
+                    throw new Error("Request timed out. The server took too long to respond.");
+                }
+                console.error(`API Error on ${endpoint}:`, err);
+                throw err;
+            }
+        }
+
+        function performLogout(isExpired = false) {
+            // 1. Clear session variables
+            jwtToken = '';
+            userProfile = null;
+            activeConversationId = '';
+            
+            // 2. Clear user profile layout
+            userDisplayName.innerText = 'Username';
+            userAvatar.innerText = 'U';
+            userDisplayRole.innerText = 'Role';
+            userDisplayRole.className = 'user-role-badge';
+            
+            // 3. Clear Chat layout
+            chatMessagesContainer.innerHTML = '';
+            chatMessagesContainer.appendChild(chatEmptyState);
+            chatEmptyState.style.display = 'flex';
+            chatInputTextarea.value = '';
+            chatInputTextarea.style.height = 'auto';
+            chatSendBtn.disabled = true;
+            
+            // 4. Clear Admin layout
+            uploadResultsContainer.innerHTML = '';
+            docsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="empty-table-state">Loading document index...</td>
+                </tr>
+            `;
+            
+            // 5. Hide Admin nav button and switch views
+            navAdmin.style.display = 'none';
+            mainAppLayout.classList.remove('active');
+            loginView.classList.add('active');
+            
+            // 6. Show appropriate alert/notification
+            if (isExpired) {
+                showNotification("Session Expired", "Your authentication token is invalid or expired. Please sign in again.", "danger");
+            } else {
+                showNotification("Logged Out", "You have successfully signed out.", "info");
+            }
+        }
+
+        function handleSessionExpired() {
+            performLogout(true);
+        }
+
+        // --- Navigation Controller ---
+        function switchTab(tabId) {
+            navChat.classList.remove('active');
+            navAdmin.classList.remove('active');
+            panelChat.classList.remove('active');
+            panelAdmin.classList.remove('active');
+
+            if (tabId === 'chat') {
+                navChat.classList.add('active');
+                panelChat.classList.add('active');
+            } else if (tabId === 'admin') {
+                navAdmin.classList.add('active');
+                panelAdmin.classList.add('active');
+                loadDocumentsTable();
+            }
+        }
+
+        navChat.addEventListener('click', () => switchTab('chat'));
+        navAdmin.addEventListener('click', () => switchTab('admin'));
+
+        // --- Toggle Login / Register ---
+        toggleAuthViewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (isLoginViewActive) {
+                // Switch to register view
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                loginSubtitle.innerText = 'Create a secure enterprise account';
+                toggleMessage.innerText = 'Already have an account?';
+                toggleAuthViewBtn.innerText = 'Sign In';
+                isLoginViewActive = false;
+            } else {
+                // Switch to login view
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                loginSubtitle.innerText = 'Sign in to query corporate policy';
+                toggleMessage.innerText = "Don't have an account?";
+                toggleAuthViewBtn.innerText = 'Register';
+                isLoginViewActive = true;
+            }
+        });
+
+        // --- Handle Authentication Form Submissions ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = loginUsernameInput.value.trim();
+            const password = loginPasswordInput.value;
+
+            try {
+                const response = await apiFetch('/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ username, password })
+                });
+
+                // Store token in-memory ONLY
+                jwtToken = response.access_token;
+                
+                // Parse claims to get role (since token contains username and role)
+                const payloadBase64 = jwtToken.split('.')[1];
+                const decodedPayload = JSON.parse(atob(payloadBase64));
+                userProfile = {
+                    username: decodedPayload.username,
+                    role: decodedPayload.role
+                };
+
+                // Clear login inputs
+                loginUsernameInput.value = '';
+                loginPasswordInput.value = '';
+
+                showNotification("Logged In", `Welcome back, ${userProfile.username}!`, "success");
+                enterAppLayout();
+            } catch (err) {
+                showNotification("Login Failed", err.message || "Invalid username or password.", "danger");
+            }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = registerUsernameInput.value.trim();
+            const password = registerPasswordInput.value;
+            const role = registerRoleSelect.value;
+
+            try {
+                await apiFetch('/auth/register', {
+                    method: 'POST',
+                    body: JSON.stringify({ username, password, role })
+                });
+
+                showNotification("Registration Successful", "Your account has been created. Please sign in now.", "success");
+                
+                // Clear register inputs and toggle back to login
+                registerUsernameInput.value = '';
+                registerPasswordInput.value = '';
+                registerRoleSelect.value = 'employee';
+                toggleAuthViewBtn.click();
+            } catch (err) {
+                showNotification("Registration Failed", err.message || "Unable to register account.", "danger");
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            performLogout(false);
+        });
+
+        // Setup Application UI post-auth
+        function enterAppLayout() {
+            loginView.classList.remove('active');
+            mainAppLayout.classList.add('active');
+
+            // Setup Profile Details
+            userDisplayName.innerText = userProfile.username;
+            userAvatar.innerText = userProfile.username.charAt(0).toUpperCase();
+            userDisplayRole.innerText = userProfile.role;
+            if (userProfile.role === 'admin') {
+                userDisplayRole.className = 'user-role-badge admin';
+                navAdmin.style.display = 'flex';
+            } else {
+                userDisplayRole.className = 'user-role-badge';
+                navAdmin.style.display = 'none';
+            }
+
+            // Redirect appropriately
+            if (userProfile.role === 'admin') {
+                switchTab('admin');
+            } else {
+                switchTab('chat');
+            }
+            
+            // Start fresh chat session subtitle
+            generateFreshSessionId();
+        }
+
+        // --- Chat Interface Logic ---
+        function generateFreshSessionId() {
+            activeConversationId = `session-${Math.random().toString(36).substring(2, 11)}`;
+            chatSessionSubtitle.innerHTML = `Session active: <code style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace;">${activeConversationId}</code>`;
+        }
+
+        resetChatBtn.addEventListener('click', () => {
+            chatMessagesContainer.innerHTML = '';
+            chatMessagesContainer.appendChild(chatEmptyState);
+            chatEmptyState.style.display = 'flex';
+            generateFreshSessionId();
+            showNotification("Session Reset", "Conversation history cleared. Fresh session generated.", "info");
+        });
+
+        // Textarea auto-height adjustment and enter-key capture
+        chatInputTextarea.addEventListener('input', () => {
+            chatInputTextarea.style.height = 'auto';
+            chatInputTextarea.style.height = `${chatInputTextarea.scrollHeight - 16}px`; // padding compensation
+            chatSendBtn.disabled = !chatInputTextarea.value.trim();
+        });
+
+        chatInputTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Don't add newline
+                sendMessage();
+            }
+        });
+
+        chatSendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const text = chatInputTextarea.value.trim();
+            if (!text) return;
+
+            // Remove Empty state if visible
+            if (chatEmptyState) {
+                chatEmptyState.style.display = 'none';
+            }
+
+            // Append User Message to Thread
+            appendMessage(text, 'user');
+            
+            // Clear and reset inputs
+            chatInputTextarea.value = '';
+            chatInputTextarea.style.height = 'auto';
+            chatSendBtn.disabled = true;
+
+            // Append pulsing loader
+            const loaderId = appendTypingIndicator();
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+
+            try {
+                const response = await apiFetch('/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        question: text,
+                        conversation_id: activeConversationId,
+                        k: 5
+                    })
+                });
+
+                // Remove loader and append assistant message
+                removeElement(loaderId);
+                appendMessage(response.answer, 'assistant', response.sources || []);
+            } catch (err) {
+                removeElement(loaderId);
+                appendMessage(`⚠️ Error: ${err.message || "An unexpected error occurred."}`, 'assistant');
+            }
+
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+
+        function appendMessage(text, sender, citations = []) {
+            const bubble = document.createElement('div');
+            bubble.className = `message-bubble ${sender}`;
+            
+            // Support simple newlines formatting
+            const formattedText = text.replace(/\n/g, '<br>');
+            bubble.innerHTML = `<div>${formattedText}</div>`;
+            
+            // Append citations if they exist
+            if (citations && citations.length > 0) {
+                const citationsDiv = document.createElement('div');
+                citationsDiv.className = 'citations-container';
+                citationsDiv.innerHTML = `<div class="citations-title">Sources cited:</div>`;
+                
+                const list = document.createElement('ul');
+                list.className = 'citations-list';
+                
+                citations.forEach(c => {
+                    const item = document.createElement('li');
+                    item.className = 'citation-badge';
+                    item.title = c.snippet || '';
+                    item.innerHTML = `
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        <span>${c.filename} (Page ${c.page_number})</span>
+                    `;
+                    list.appendChild(item);
+                });
+                
+                citationsDiv.appendChild(list);
+                bubble.appendChild(citationsDiv);
+            }
+
+            const timestamp = document.createElement('div');
+            timestamp.className = 'message-time';
+            timestamp.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            bubble.appendChild(timestamp);
+
+            chatMessagesContainer.appendChild(bubble);
+        }
+
+        function appendTypingIndicator() {
+            const loaderId = `loader-${Date.now()}`;
+            const loaderBubble = document.createElement('div');
+            loaderBubble.id = loaderId;
+            loaderBubble.className = 'message-bubble assistant';
+            
+            loaderBubble.innerHTML = `
+                <div class="typing-loader">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+            chatMessagesContainer.appendChild(loaderBubble);
+            return loaderId;
+        }
+
+        function removeElement(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.remove();
+            }
+        }
+
+        // --- Admin Console Logic ---
+        async function loadDocumentsTable() {
+            try {
+                const response = await apiFetch('/admin/documents');
+                docsTableBody.innerHTML = '';
+                
+                if (response.length === 0) {
+                    docsTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="empty-table-state">No documents ingested. Click upload to index policy sheets.</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                response.forEach(doc => {
+                    const row = document.createElement('tr');
+                    const uploadDate = new Date(doc.upload_date).toLocaleString();
+                    
+                    row.innerHTML = `
+                        <td>
+                            <div class="doc-name">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                <span>${doc.filename}</span>
+                            </div>
+                        </td>
+                        <td><span class="doc-date">${uploadDate}</span></td>
+                        <td>${doc.chunk_count}</td>
+                        <td><span class="doc-badge">${doc.status}</span></td>
+                        <td>
+                            <button class="doc-delete-btn" data-id="${doc.id}" data-name="${doc.filename}" title="Delete document">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </td>
+                    `;
+
+                    // Bind delete listener
+                    row.querySelector('.doc-delete-btn').addEventListener('click', (e) => {
+                        const target = e.currentTarget;
+                        docToDeleteId = target.getAttribute('data-id');
+                        docToDeleteName = target.getAttribute('data-name');
+                        showConfirmDialog();
+                    });
+
+                    docsTableBody.appendChild(row);
+                });
+            } catch (err) {
+                docsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="empty-table-state" style="color: var(--danger);">Failed to retrieve index: ${err.message}</td>
+                    </tr>
+                `;
+            }
+        }
+
+        // --- Custom modal dialog confirmation ---
+        function showConfirmDialog() {
+            modalMessage.innerHTML = `Are you sure you want to delete <strong>${docToDeleteName}</strong>?<br><br>This will permanently erase all metadata and its associated semantic vector embeddings. <strong>This cannot be undone.</strong>`;
+            confirmModal.classList.add('active');
+        }
+
+        function hideConfirmDialog() {
+            confirmModal.classList.remove('active');
+            docToDeleteId = null;
+            docToDeleteName = '';
+        }
+
+        modalCancelBtn.addEventListener('click', hideConfirmDialog);
+        
+        modalConfirmBtn.addEventListener('click', async () => {
+            if (!docToDeleteId) return;
+            try {
+                await apiFetch(`/admin/documents/${docToDeleteId}`, {
+                    method: 'DELETE'
+                });
+                showNotification("Document Deleted", `Successfully removed '${docToDeleteName}' from the database.`, "success");
+                loadDocumentsTable();
+            } catch (err) {
+                showNotification("Deletion Failed", `Error: ${err.message}`, "danger");
+            } finally {
+                hideConfirmDialog();
+            }
+        });
+
+        // --- File Upload Zone Logic ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFilesSelected(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFilesSelected(fileInput.files);
+            }
+        });
+
+        async function handleFilesSelected(files) {
+            if (isUploading) return;
+            isUploading = true;
+            
+            // Build queue list in UI
+            uploadResultsContainer.innerHTML = '';
+            
+            const fileList = Array.from(files);
+            const formData = new FormData();
+            
+            fileList.forEach(file => {
+                formData.append('files', file);
+                
+                const item = document.createElement('div');
+                item.className = 'upload-result-item';
+                item.id = `up-item-${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                
+                item.innerHTML = `
+                    <div class="upload-file-info">
+                        <div class="upload-file-name">${file.name}</div>
+                        <div class="upload-file-status">Verifying file size and extension...</div>
+                    </div>
+                    <div class="upload-result-badge pending">Validating</div>
+                `;
+                uploadResultsContainer.appendChild(item);
+            });
+
+            try {
+                const response = await apiFetch('/admin/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Process uploaded results
+                if (response.uploaded && response.uploaded.length > 0) {
+                    response.uploaded.forEach(doc => {
+                        updateUploadQueueItem(doc.filename, 'success', `Ingested successfully (${doc.chunks} chunks)`);
+                    });
+                }
+                
+                if (response.failed && response.failed.length > 0) {
+                    response.failed.forEach(fail => {
+                        const isDuplicate = fail.error && fail.error.includes("already ingested");
+                        const badgeType = isDuplicate ? 'duplicate' : 'failed';
+                        const statusMsg = isDuplicate ? "Skipped (Duplicate file)" : `Failed: ${fail.error}`;
+                        updateUploadQueueItem(fail.filename, badgeType, statusMsg);
+                    });
+                }
+
+                showNotification("Ingestion Complete", `Upload processing finished. Check status logs.`, "info");
+                loadDocumentsTable();
+            } catch (err) {
+                // If the entire POST request fails
+                fileList.forEach(file => {
+                    updateUploadQueueItem(file.name, 'failed', `Upload error: ${err.message}`);
+                });
+                showNotification("Ingestion Failed", `System failed to ingest documents: ${err.message}`, "danger");
+            } finally {
+                isUploading = false;
+                fileInput.value = ''; // Clear file input buffer
+            }
+        }
+
+        function updateUploadQueueItem(filename, statusType, message) {
+            const itemId = `up-item-${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const item = document.getElementById(itemId);
+            if (!item) return;
+
+            const badge = item.querySelector('.upload-result-badge');
+            const statusText = item.querySelector('.upload-file-status');
+            
+            badge.className = `upload-result-badge ${statusType}`;
+            badge.innerText = statusType;
+            statusText.innerText = message;
+        }
+
+    </script>
+</body>
+</html>
