@@ -182,6 +182,24 @@
             box-shadow: 0 0 0 3px var(--primary-glow);
         }
 
+        .kb-select {
+            background: rgba(13, 20, 30, 0.9);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: var(--text-main);
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+            max-width: 250px;
+        }
+
+        .kb-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
         .form-select {
             width: 100%;
             background: rgba(8, 11, 17, 0.8);
@@ -1031,6 +1049,60 @@
         </div>
     </div>
 
+    <!-- Outreach Send Confirmation Modal -->
+    <div id="outreach-send-modal" class="modal-overlay" style="z-index: 1100;">
+        <div class="confirm-modal" style="max-width: 550px; text-align: left;">
+            <div class="confirm-title" style="margin-bottom: 12px;">Confirm Outreach Delivery</div>
+            <div style="margin-bottom: 20px; font-size: 13.5px; color: var(--text-color); line-height: 1.5;">
+                You are about to transmit this outreach message via email.
+            </div>
+            
+            <div style="background: rgba(13,20,30,0.4); border: 1px solid var(--card-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; margin-bottom: 20px;">
+                <div>
+                    <strong style="color: var(--text-muted); display: inline-block; width: 80px;">Recipient:</strong>
+                    <span id="outreach-modal-recipient" style="color: white; font-weight: 600;">...</span>
+                </div>
+                <div>
+                    <strong style="color: var(--text-muted); display: inline-block; width: 80px;">Subject:</strong>
+                    <span id="outreach-modal-subject" style="color: white; font-weight: 600;">...</span>
+                </div>
+                <div style="border-top: 1px solid var(--card-border); padding-top: 12px;">
+                    <strong style="color: var(--text-muted); display: block; margin-bottom: 6px;">Message Preview:</strong>
+                    <pre id="outreach-modal-body-preview" style="background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; line-height: 1.4; color: var(--text-color); white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow-y: auto; margin: 0;"></pre>
+                </div>
+            </div>
+
+            <!-- Step Verification Checkbox -->
+            <div style="display: flex; gap: 10px; align-items: flex-start; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 12px; border-radius: 6px; margin-bottom: 24px;">
+                <input type="checkbox" id="outreach-modal-verify-checkbox" style="margin-top: 3px; cursor: pointer;">
+                <label for="outreach-modal-verify-checkbox" style="font-size: 12.5px; color: #f59e0b; cursor: pointer; user-select: none; line-height: 1.4;">
+                    I have verified the recipient email address matches the target company and the message details are correct.
+                </label>
+            </div>
+            
+            <div class="confirm-actions">
+                <button id="outreach-modal-cancel-btn" class="btn-secondary">Cancel</button>
+                <button id="outreach-modal-confirm-btn" class="btn-primary" style="background: #10b981;" disabled>Confirm & Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Confirmation Modal -->
+    <div id="review-confirm-modal" class="modal-overlay">
+        <div class="confirm-modal">
+            <div id="review-modal-title" class="confirm-title">Approve Draft</div>
+            <div id="review-modal-message" class="confirm-message">Are you sure you want to approve this draft for outreach?</div>
+            <div id="review-modal-input-container" style="display: none; margin-bottom: 20px; text-align: left;">
+                <label for="review-modal-rejection-reason" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: white;">Rejection Reason (Optional):</label>
+                <textarea id="review-modal-rejection-reason" class="chat-textarea" placeholder="Type reason for rejection here..." rows="3" style="width: 100%; border: 1px solid var(--border-color); background: rgba(13,20,30,0.9); color: var(--text-color); border-radius: 6px; padding: 10px; resize: none; font-size: 13px;"></textarea>
+            </div>
+            <div class="confirm-actions">
+                <button id="review-modal-cancel-btn" class="btn-secondary">Cancel</button>
+                <button id="review-modal-confirm-btn" class="btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 1. LOGIN / REGISTRATION VIEW -->
     <section id="login-view" class="view-section active">
         <div class="login-card">
@@ -1138,10 +1210,16 @@
                         <h3>Knowledge Chat Assistant</h3>
                         <p id="chat-session-subtitle">Ask policies or questions based on ingested materials.</p>
                     </div>
-                    <button id="reset-chat-btn" class="chat-reset-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                        <span>Reset Session</span>
-                    </button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="chat-collection-select" class="kb-select" style="background: rgba(13, 20, 30, 0.9); padding: 8px; font-size: 12px;">
+                            <option value="company_knowledge_base_gemini_3072">Company Policies</option>
+                            <option value="evon_capabilities">EVON Capabilities</option>
+                        </select>
+                        <button id="reset-chat-btn" class="chat-reset-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                            <span>Reset Session</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="chat-messages-container" class="chat-messages">
@@ -1166,55 +1244,438 @@
             </div>
 
             <!-- ADMIN PANEL VIEW -->
+            <!-- ADMIN PANEL VIEW -->
             <div id="panel-admin" class="tab-panel">
                 <div class="admin-container">
-                    <div class="admin-header">
-                        <h2>Admin Control Center</h2>
-                        <p>Manage documents stored in the company knowledge base index.</p>
+                    <div class="admin-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h2>Admin Control Center</h2>
+                            <p id="admin-header-subtitle">Manage documents stored in the company knowledge base index.</p>
+                        </div>
+                        <div class="admin-subtabs" style="display: flex; gap: 8px; background: rgba(13, 20, 30, 0.4); padding: 4px; border-radius: 8px; border: 1px solid var(--card-border);">
+                            <button id="admin-subtab-docs" class="btn-subtab active" style="background: var(--primary-color); color: white; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">Knowledge Index</button>
+                            <button id="admin-subtab-research" class="btn-subtab" style="background: none; color: var(--text-muted); border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">Company Research</button>
+                            <button id="admin-subtab-review" class="btn-subtab" style="background: none; color: var(--text-muted); border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">Review Queue</button>
+                            <button id="admin-subtab-outreach" class="btn-subtab" style="background: none; color: var(--text-muted); border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">Outreach Delivery</button>
+                        </div>
                     </div>
 
-                    <div class="admin-grid">
-                        <!-- Upload block -->
-                        <div class="admin-card">
-                            <h3>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                                Ingest New Document
-                            </h3>
-                            <div id="drop-zone" class="upload-zone">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 15c.7-1.2 1-2.5.7-3.9-.6-3-3.1-5.2-6.1-5.1-1 .1-2 .4-2.8 1-1.3-1.8-3.5-3-6-2.7-3.8.5-6.7 3.8-6.7 7.7 0 1.2.3 2.4.9 3.4"></path><path d="M12 12v9"></path><path d="M8 16l4-4 4 4"></path></svg>
-                                <h4>Drag & Drop Files</h4>
-                                <p>PDF, DOCX, XLSX, TXT up to 20MB</p>
-                                <input type="file" id="file-input" multiple accept=".pdf,.docx,.xlsx,.txt">
+                    <!-- Knowledge Base Index view -->
+                    <div id="admin-view-docs" class="admin-subview-panel">
+                        <div class="admin-grid">
+                            <!-- Upload block -->
+                            <div class="admin-card">
+                                <h3>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                    Ingest New Document
+                                </h3>
+                                <div id="drop-zone" class="upload-zone">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 15c.7-1.2 1-2.5.7-3.9-.6-3-3.1-5.2-6.1-5.1-1 .1-2 .4-2.8 1-1.3-1.8-3.5-3-6-2.7-3.8.5-6.7 3.8-6.7 7.7 0 1.2.3 2.4.9 3.4"></path><path d="M12 12v9"></path><path d="M8 16l4-4 4 4"></path></svg>
+                                    <h4>Drag & Drop Files</h4>
+                                    <p>PDF, DOCX, XLSX, TXT up to 20MB</p>
+                                    <input type="file" id="file-input" multiple accept=".pdf,.docx,.xlsx,.txt">
+                                </div>
+                                
+                                <div id="upload-results-container" class="upload-results-list">
+                                    <!-- Upload queues appear here -->
+                                </div>
                             </div>
-                            
-                            <div id="upload-results-container" class="upload-results-list">
-                                <!-- Upload queues appear here -->
+
+                            <!-- Documents DB List -->
+                            <div class="admin-card">
+                                <div class="admin-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                    <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                        Knowledge Base Index
+                                    </h3>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <span style="font-size: 13px; color: var(--text-muted);">Active KB:</span>
+                                        <select id="admin-collection-select" class="kb-select">
+                                            <option value="company_knowledge_base_gemini_3072">Company Policies</option>
+                                            <option value="evon_capabilities">EVON Capabilities</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="table-wrapper">
+                                    <table class="docs-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Filename</th>
+                                                <th>Collection</th>
+                                                <th>Uploaded At</th>
+                                                <th>Chunks</th>
+                                                <th>Status</th>
+                                                <th style="width: 60px;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="docs-table-body">
+                                            <tr>
+                                                <td colspan="6" class="empty-table-state">Loading document index...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Documents DB List -->
-                        <div class="admin-card">
-                            <h3>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                Knowledge Base Index
-                            </h3>
-                            <div class="table-wrapper">
-                                <table class="docs-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Filename</th>
-                                            <th>Uploaded At</th>
-                                            <th>Chunks</th>
-                                            <th>Status</th>
-                                            <th style="width: 60px;">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="docs-table-body">
-                                        <tr>
-                                            <td colspan="5" class="empty-table-state">Loading document index...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                    <!-- SUB-VIEW: Company Research -->
+                    <div id="admin-view-research" class="admin-subview-panel" style="display: none;">
+                        <div class="admin-grid" style="grid-template-columns: 1fr 1.3fr; gap: 30px;">
+                            <!-- Left Column: Controls & Pipeline Tracker -->
+                            <div style="display: flex; flex-direction: column; gap: 20px;">
+                                <!-- Form Card -->
+                                <div class="admin-card">
+                                    <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                        Start New Prospect Research
+                                    </h3>
+                                    <form id="research-input-form" onsubmit="event.preventDefault();">
+                                        <div class="form-group" style="margin-bottom: 14px;">
+                                            <label class="form-label" for="research-company-input" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">Company Name / Website URL</label>
+                                            <input type="text" id="research-company-input" class="form-input" placeholder="e.g. Gaylord Xpress or Apple Inc." required style="background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; color: white; box-sizing: border-box; width: 100%;">
+                                        </div>
+                                        <button type="submit" id="research-submit-btn" class="btn-primary" style="width: 100%; padding: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; border: none; border-radius: 6px; cursor: pointer;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 2 11 13"></polyline><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                            <span>Run Search & Research</span>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- Pipeline tracker -->
+                                <div class="admin-card">
+                                    <h3 style="margin-bottom: 16px; font-size: 14px;">Research Pipeline Progress</h3>
+                                    <div style="display: flex; flex-direction: column; gap: 14px; position: relative;">
+                                        <!-- Step 1 Indicator -->
+                                        <div id="pipeline-step-1" class="pipeline-step" style="display: flex; gap: 12px; align-items: flex-start; opacity: 0.4;">
+                                            <div class="pipeline-number" style="width: 22px; height: 22px; border-radius: 50%; background: var(--card-border); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">1</div>
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 13px; color: white;">Web Research (Tavily API)</div>
+                                                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Extract news, description, needs & tech stack.</div>
+                                            </div>
+                                        </div>
+                                        <!-- Step 2 Indicator -->
+                                        <div id="pipeline-step-2" class="pipeline-step" style="display: flex; gap: 12px; align-items: flex-start; opacity: 0.4;">
+                                            <div class="pipeline-number" style="width: 22px; height: 22px; border-radius: 50%; background: var(--card-border); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">2</div>
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 13px; color: white;">Identify Opportunities</div>
+                                                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Cross-reference needs against EVON services.</div>
+                                            </div>
+                                        </div>
+                                        <!-- Step 3 Indicator -->
+                                        <div id="pipeline-step-3" class="pipeline-step" style="display: flex; gap: 12px; align-items: flex-start; opacity: 0.4;">
+                                            <div class="pipeline-number" style="width: 22px; height: 22px; border-radius: 50%; background: var(--card-border); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">3</div>
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 13px; color: white;">Generate Outreach Drafts</div>
+                                                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Compose BDR summaries and customized emails.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Step Output Details -->
+                            <div class="admin-card" style="display: flex; flex-direction: column; min-height: 500px;">
+                                <!-- Static Placeholder -->
+                                <div id="res-output-placeholder" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-muted); padding: 40px;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;">
+                                        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8v6"></path><path d="M8 11h6"></path>
+                                    </svg>
+                                    <h4>Prospect Pipeline Output</h4>
+                                    <p style="max-width: 280px; margin-top: 6px; font-size: 12.5px; line-height: 1.4;">Enter a company name on the left to start. You will be guided through live web research, capability matching, and email generation.</p>
+                                </div>
+
+                                <!-- Loading / Spinner Indicator -->
+                                <div id="res-loading-container" style="display: none; flex-grow: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px;">
+                                    <div class="typing-loader" style="margin-bottom: 16px;"></div>
+                                    <h4 id="res-loading-title" style="color: white; font-size: 14px;">Performing Web Research...</h4>
+                                    <p id="res-loading-subtitle" style="font-size: 12px; color: var(--text-muted); max-width: 260px; margin-top: 6px; line-height: 1.4;">Tavily is searching live indexes. This step typically takes 10 to 30 seconds.</p>
+                                </div>
+
+                                <!-- Step 1 Output Content: Company Profile -->
+                                <div id="res-profile-container" style="display: none; flex-direction: column; height: 100%;">
+                                    <div style="border-bottom: 1px solid var(--card-border); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <div>
+                                            <h3 id="res-profile-company-name" style="margin: 0; color: white; font-size: 16px; font-family: 'Outfit', sans-serif;">Company Name</h3>
+                                            <p id="res-profile-meta" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">Industry | Size/Stage</p>
+                                        </div>
+                                        <span class="status-badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">Profile Ready</span>
+                                    </div>
+
+                                    <div style="flex-grow: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 20px; max-height: 380px;">
+                                        <!-- Profile info -->
+                                        <div>
+                                            <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 8px; letter-spacing: 0.05em;">Company Overview</h4>
+                                            <p id="res-profile-what-they-do" style="font-size: 13px; line-height: 1.5; color: var(--text-color); margin: 0;"></p>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 8px; letter-spacing: 0.05em;">Tech Stack</h4>
+                                            <div id="res-profile-tech-stack" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 8px; letter-spacing: 0.05em;">Recent News</h4>
+                                            <ul id="res-profile-recent-news" style="margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; color: var(--text-color);"></ul>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 8px; letter-spacing: 0.05em;">Business Needs</h4>
+                                            <ul id="res-profile-business-needs" style="margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; color: var(--text-color);"></ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- Next action -->
+                                    <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--card-border); display: flex; justify-content: flex-end;">
+                                        <button id="res-step-1-next-btn" class="btn-primary" style="padding: 8px 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                                            <span>Find Opportunities</span>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2 Output Content: Match Opportunities -->
+                                <div id="res-opp-container" style="display: none; flex-direction: column; height: 100%;">
+                                    <div style="border-bottom: 1px solid var(--card-border); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <div>
+                                            <h3 id="res-opp-company-name" style="margin: 0; color: white; font-size: 16px; font-family: 'Outfit', sans-serif;">Company Name</h3>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">Capability Matching Step Completed</p>
+                                        </div>
+                                        <span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">Match Results</span>
+                                    </div>
+
+                                    <div style="flex-grow: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 14px; max-height: 380px;">
+                                        <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 8px; letter-spacing: 0.05em;">Matched Opportunities</h4>
+                                        <div id="res-opp-results-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                                    </div>
+
+                                    <!-- Next action -->
+                                    <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+                                        <button id="res-step-2-back-btn" class="chat-reset-btn" style="padding: 6px 12px; font-size: 12px;">Back to Profile</button>
+                                        <button id="res-step-2-next-btn" class="btn-primary" style="padding: 8px 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                                            <span>Generate Drafts</span>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Step 3 Output Content: Generated Drafts -->
+                                <div id="res-drafts-container" style="display: none; flex-direction: column; height: 100%;">
+                                    <div style="border-bottom: 1px solid var(--card-border); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <div>
+                                            <h3 id="res-drafts-company-name" style="margin: 0; color: white; font-size: 16px; font-family: 'Outfit', sans-serif;">Company Name</h3>
+                                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">Prospect generation complete</p>
+                                        </div>
+                                        <span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">Finished</span>
+                                    </div>
+
+                                    <div style="flex-grow: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 20px; max-height: 380px;">
+                                        <div style="padding: 10px 14px; border-radius: 6px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; font-size: 12.5px; display: flex; align-items: center; gap: 8px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                            <span><strong>Draft Created:</strong> Saved to Review Queue as 'pending_review' status!</span>
+                                        </div>
+                                        
+                                        <!-- Internal summary -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); letter-spacing: 0.05em; margin: 0;">Internal Summary</h4>
+                                                <button id="res-copy-internal-btn" class="chat-reset-btn" style="padding: 4px 8px; font-size: 11px;">Copy</button>
+                                            </div>
+                                            <pre id="res-internal-draft" style="margin: 0; background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--text-color); white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow-y: auto;"></pre>
+                                        </div>
+
+                                        <!-- Outreach message -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-color); letter-spacing: 0.05em; margin: 0;">Personalized Outreach Email</h4>
+                                                <button id="res-copy-outreach-btn" class="chat-reset-btn" style="padding: 4px 8px; font-size: 11px;">Copy</button>
+                                            </div>
+                                            <pre id="res-outreach-draft" style="margin: 0; background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--text-color); white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow-y: auto;"></pre>
+                                        </div>
+                                    </div>
+
+                                    <!-- Next action -->
+                                    <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+                                        <button id="res-step-3-back-btn" class="chat-reset-btn" style="padding: 6px 12px; font-size: 12px;">Back to Match</button>
+                                        <button id="res-finish-btn" class="btn-primary" style="padding: 8px 16px; font-size: 12px; font-weight: 600;">Go to Review Queue</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-VIEW 2: Review Queue -->
+                    <div id="admin-view-review" class="admin-subview-panel" style="display: none;">
+                        <div class="admin-grid" style="grid-template-columns: 1fr; gap: 30px;">
+                            <!-- Left Column: Pending List -->
+                            <div class="admin-card" style="display: flex; flex-direction: column; max-height: 600px;">
+                                <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                    Pending Drafts (<span id="pending-count">0</span>)
+                                </h3>
+                                <div id="review-list-container" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; max-height: 480px; padding-right: 4px;">
+                                    <!-- Dynamic list items go here -->
+                                    <p id="review-list-empty" style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 40px;">No drafts pending review.</p>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Selected Details -->
+                            <div class="admin-card" style="display: flex; flex-direction: column; min-height: 500px;">
+                                <div id="review-details-placeholder" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center; padding: 40px;">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line><path d="M12 17v4"></path><path d="M8 21h8"></path>
+                                    </svg>
+                                    <h4>Select a Draft</h4>
+                                    <p style="max-width: 250px; margin-top: 8px; font-size: 13px;">Choose a generated draft from the queue to view details and review.</p>
+                                </div>
+
+                                <div id="review-details-content" style="display: none; flex-direction: column; height: 100%;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--card-border); padding-bottom: 16px; margin-bottom: 20px;">
+                                        <div>
+                                            <h3 id="review-company-name" style="margin: 0; font-size: 18px; font-family: 'Outfit', sans-serif;">Company Name</h3>
+                                            <p id="review-company-meta" style="margin: 4px 0 0 0; font-size: 13px; color: var(--text-muted);">Industry | Size/Stage</p>
+                                        </div>
+                                        <span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Pending Review</span>
+                                    </div>
+
+                                    <div style="flex-grow: 1; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 24px; max-height: 500px;">
+                                        <!-- Profile Info -->
+                                        <div>
+                                            <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary-color); margin-bottom: 10px;">Company Profile</h4>
+                                            <p id="review-what-they-do" style="font-size: 13px; line-height: 1.5; margin-bottom: 12px; color: var(--text-color);"></p>
+                                            
+                                            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                                                <div><strong>Tech Stack:</strong> <span id="review-tech-stack" style="display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px;"></span></div>
+                                                <div><strong>Recent News:</strong> <ul id="review-recent-news" style="margin: 4px 0 0 16px; padding: 0; list-style-type: disc;"></ul></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Opportunities -->
+                                        <div>
+                                            <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary-color); margin-bottom: 10px;">Opportunities Found</h4>
+                                            <div id="review-opportunities-list" style="display: flex; flex-direction: column; gap: 12px;">
+                                                <!-- Loop opportunities here -->
+                                            </div>
+                                        </div>
+
+                                        <!-- Internal Draft -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                                <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary-color); margin: 0;">Internal Analysis Draft</h4>
+                                                <button id="copy-internal-btn" class="chat-reset-btn" style="padding: 4px 8px; font-size: 11px;">Copy Text</button>
+                                            </div>
+                                            <pre id="review-internal-draft" style="background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 16px; font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.5; color: var(--text-color); white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;"></pre>
+                                        </div>
+
+                                        <!-- Outreach Draft -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                                <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary-color); margin: 0;">Client Outreach Message</h4>
+                                                <button id="copy-outreach-btn" class="chat-reset-btn" style="padding: 4px 8px; font-size: 11px;">Copy Text</button>
+                                            </div>
+                                            <pre id="review-outreach-draft" style="background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 16px; font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.5; color: var(--text-color); white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;"></pre>
+                                        </div>
+                                    </div>
+
+                                    <!-- Decision Actions -->
+                                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--card-border);">
+                                        <button id="review-reject-btn" class="btn-danger" style="padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 6px; border: none;">Reject Draft</button>
+                                        <button id="review-approve-btn" class="btn-primary" style="padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 6px; border: none; background: #10b981; color: white;">Approve for Outreach</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-VIEW 3: Outreach Delivery -->
+                    <div id="admin-view-outreach" class="admin-subview-panel" style="display: none;">
+                        <div class="admin-grid" style="grid-template-columns: 1fr 1.3fr; gap: 30px;">
+                            <!-- Left Column: Queues -->
+                            <div style="display: flex; flex-direction: column; gap: 20px; max-height: 600px;">
+                                <!-- Section 1: Approved Queue -->
+                                <div class="admin-card" style="display: flex; flex-direction: column; flex: 1; min-height: 250px;">
+                                    <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                        Approved for Outreach (<span id="approved-count">0</span>)
+                                    </h3>
+                                    <div id="approved-list-container" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; max-height: 200px; padding-right: 4px;">
+                                        <p id="approved-list-empty" style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">No approved drafts ready to send.</p>
+                                    </div>
+                                </div>
+                                <!-- Section 2: Sent Log -->
+                                <div class="admin-card" style="display: flex; flex-direction: column; flex: 1; min-height: 250px;">
+                                    <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                        Sent Outreach Log (<span id="sent-count">0</span>)
+                                    </h3>
+                                    <div id="sent-list-container" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; max-height: 200px; padding-right: 4px;">
+                                        <p id="sent-list-empty" style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">No emails have been sent yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Detail / Composer -->
+                            <div class="admin-card" style="display: flex; flex-direction: column; min-height: 500px;">
+                                <div id="outreach-details-placeholder" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center; padding: 40px;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px;">
+                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline>
+                                    </svg>
+                                    <h4>Outreach Delivery</h4>
+                                    <p style="max-width: 250px; margin-top: 6px; font-size: 12px; line-height: 1.4;">Select an approved draft to configure recipient and send outreach, or click a sent log item to view delivery details.</p>
+                                </div>
+
+                                <div id="outreach-details-content" style="display: none; flex-direction: column; height: 100%;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--card-border); padding-bottom: 14px; margin-bottom: 16px;">
+                                        <div>
+                                            <h3 id="outreach-company-name" style="margin: 0; font-size: 16px; font-family: 'Outfit', sans-serif;">Company Name</h3>
+                                            <p id="outreach-company-meta" style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);">Industry | Size/Stage</p>
+                                        </div>
+                                        <span id="outreach-status-badge" class="status-badge" style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">Approved</span>
+                                    </div>
+
+                                    <div style="flex-grow: 1; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 16px; max-height: 400px;">
+                                        <!-- Error notification banner -->
+                                        <div id="outreach-error-banner" style="display: none; padding: 10px 14px; border-radius: 6px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; font-size: 12px; line-height: 1.4;">
+                                            <strong>Last Send Attempt Failed:</strong> <span id="outreach-error-text">...</span>
+                                        </div>
+                                        
+                                        <!-- Delivery info banner -->
+                                        <div id="outreach-sent-banner" style="display: none; padding: 10px 14px; border-radius: 6px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 12px; line-height: 1.4;">
+                                            Sent on <strong id="outreach-sent-time">...</strong> to <strong id="outreach-sent-address">...</strong>
+                                        </div>
+
+                                        <!-- Recipient Details -->
+                                        <div>
+                                            <label style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.05em;">Recipient Email Address</label>
+                                            <input type="email" id="outreach-recipient-input" placeholder="Enter recipient email address..." style="width: 100%; background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px 12px; color: white; font-size: 13px; box-sizing: border-box;">
+                                            <p id="outreach-no-email-warning" style="display: none; color: #f59e0b; font-size: 11.5px; margin: 4px 0 0 0;">⚠️ No contact email addresses were discovered. Please enter one manually.</p>
+                                            <div id="outreach-suggestions-container" style="display: none; margin-top: 4px; font-size: 12px; color: var(--text-muted);">
+                                                Discovered: <span id="outreach-email-chips" style="display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 4px; vertical-align: middle;"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Subject Line -->
+                                        <div>
+                                            <label style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.05em;">Subject Line</label>
+                                            <input type="text" id="outreach-subject-input" placeholder="Subject..." style="width: 100%; background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px 12px; color: white; font-size: 13px; box-sizing: border-box;">
+                                        </div>
+
+                                        <!-- Message Body Editor -->
+                                        <div>
+                                            <label style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.05em;">Outreach Message Body</label>
+                                            <textarea id="outreach-body-textarea" style="width: 100%; height: 180px; background: rgba(13,20,30,0.6); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; color: white; font-size: 13px; font-family: monospace; line-height: 1.5; resize: vertical; box-sizing: border-box;"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delivery Actions -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+                                        <button id="outreach-copy-body-btn" class="chat-reset-btn" style="padding: 8px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                            Copy message
+                                        </button>
+                                        <button id="outreach-send-btn" class="btn-primary" style="padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: 6px; border: none; background: #10b981; color: white; display: flex; align-items: center; gap: 6px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                            Send via Email
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1234,6 +1695,10 @@
         let isUploading = false;
         let docToDeleteId = null;
         let docToDeleteName = '';
+        let activeAdminSubtab = 'docs';
+        let selectedDraft = null;
+        let draftReviewAction = '';
+        let pendingDrafts = [];
 
         // --- DOM Elements ---
         const loginView = document.getElementById('login-view');
@@ -1269,12 +1734,130 @@
         const fileInput = document.getElementById('file-input');
         const uploadResultsContainer = document.getElementById('upload-results-container');
         const docsTableBody = document.getElementById('docs-table-body');
+        
+        const adminCollectionSelect = document.getElementById('admin-collection-select');
+        const chatCollectionSelect = document.getElementById('chat-collection-select');
 
         // Modal Confirmation DOM
         const confirmModal = document.getElementById('confirm-modal');
         const modalMessage = document.getElementById('modal-message');
         const modalCancelBtn = document.getElementById('modal-cancel-btn');
         const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+
+        // Review Modal Confirmation DOM
+        const reviewConfirmModal = document.getElementById('review-confirm-modal');
+        const reviewModalTitle = document.getElementById('review-modal-title');
+        const reviewModalMessage = document.getElementById('review-modal-message');
+        const reviewModalInputContainer = document.getElementById('review-modal-input-container');
+        const reviewModalRejectionReason = document.getElementById('review-modal-rejection-reason');
+        const reviewModalCancelBtn = document.getElementById('review-modal-cancel-btn');
+        const reviewModalConfirmBtn = document.getElementById('review-modal-confirm-btn');
+        
+        // Admin Subtabs & Views DOM
+        const adminSubtabDocs = document.getElementById('admin-subtab-docs');
+        const adminSubtabResearch = document.getElementById('admin-subtab-research');
+        const adminSubtabReview = document.getElementById('admin-subtab-review');
+        const adminSubtabOutreach = document.getElementById('admin-subtab-outreach');
+        const adminViewDocs = document.getElementById('admin-view-docs');
+        const adminViewResearch = document.getElementById('admin-view-research');
+        const adminViewReview = document.getElementById('admin-view-review');
+        const adminViewOutreach = document.getElementById('admin-view-outreach');
+        const adminHeaderSubtitle = document.getElementById('admin-header-subtitle');
+        
+        // Review Queue Panels DOM
+        const reviewListContainer = document.getElementById('review-list-container');
+        const reviewListEmpty = document.getElementById('review-list-empty');
+        const pendingCount = document.getElementById('pending-count');
+        const reviewDetailsPlaceholder = document.getElementById('review-details-placeholder');
+        const reviewDetailsContent = document.getElementById('review-details-content');
+        
+        // Review Queue Details DOM
+        const reviewCompanyName = document.getElementById('review-company-name');
+        const reviewCompanyMeta = document.getElementById('review-company-meta');
+        const reviewWhatTheyDo = document.getElementById('review-what-they-do');
+        const reviewTechStack = document.getElementById('review-tech-stack');
+        const reviewRecentNews = document.getElementById('review-recent-news');
+        const reviewOpportunitiesList = document.getElementById('review-opportunities-list');
+        const reviewInternalDraft = document.getElementById('review-internal-draft');
+        const reviewOutreachDraft = document.getElementById('review-outreach-draft');
+        
+        // Review Action Buttons DOM
+        const reviewRejectBtn = document.getElementById('review-reject-btn');
+        const reviewApproveBtn = document.getElementById('review-approve-btn');
+        const copyInternalBtn = document.getElementById('copy-internal-btn');
+        const copyOutreachBtn = document.getElementById('copy-outreach-btn');
+
+        // Outreach Delivery DOM references
+        const approvedCount = document.getElementById('approved-count');
+        const sentCount = document.getElementById('sent-count');
+        const approvedListContainer = document.getElementById('approved-list-container');
+        const sentListContainer = document.getElementById('sent-list-container');
+        const approvedListEmpty = document.getElementById('approved-list-empty');
+        const sentListEmpty = document.getElementById('sent-list-empty');
+        
+        const outreachDetailsPlaceholder = document.getElementById('outreach-details-placeholder');
+        const outreachDetailsContent = document.getElementById('outreach-details-content');
+        const outreachCompanyName = document.getElementById('outreach-company-name');
+        const outreachCompanyMeta = document.getElementById('outreach-company-meta');
+        const outreachStatusBadge = document.getElementById('outreach-status-badge');
+        const outreachErrorBanner = document.getElementById('outreach-error-banner');
+        const outreachErrorText = document.getElementById('outreach-error-text');
+        const outreachSentBanner = document.getElementById('outreach-sent-banner');
+        const outreachSentTime = document.getElementById('outreach-sent-time');
+        const outreachSentAddress = document.getElementById('outreach-sent-address');
+        
+        const outreachRecipientInput = document.getElementById('outreach-recipient-input');
+        const outreachNoEmailWarning = document.getElementById('outreach-no-email-warning');
+        const outreachSuggestionsContainer = document.getElementById('outreach-suggestions-container');
+        const outreachEmailChips = document.getElementById('outreach-email-chips');
+        
+        const outreachSubjectInput = document.getElementById('outreach-subject-input');
+        const outreachBodyTextarea = document.getElementById('outreach-body-textarea');
+        const outreachCopyBodyBtn = document.getElementById('outreach-copy-body-btn');
+        const outreachSendBtn = document.getElementById('outreach-send-btn');
+        
+        // Send Modal DOM references
+        const outreachSendModal = document.getElementById('outreach-send-modal');
+        const outreachModalCloseBtn = document.getElementById('outreach-modal-close-btn');
+        const outreachModalRecipient = document.getElementById('outreach-modal-recipient');
+        const outreachModalSubject = document.getElementById('outreach-modal-subject');
+        const outreachModalBodyPreview = document.getElementById('outreach-modal-body-preview');
+        const outreachModalVerifyCheckbox = document.getElementById('outreach-modal-verify-checkbox');
+        const outreachModalCancelBtn = document.getElementById('outreach-modal-cancel-btn');
+        const outreachModalConfirmBtn = document.getElementById('outreach-modal-confirm-btn');
+
+        // Company Research Pipeline DOM references
+        const researchInputForm = document.getElementById('research-input-form');
+        const researchCompanyInput = document.getElementById('research-company-input');
+        const researchSubmitBtn = document.getElementById('research-submit-btn');
+        const pipelineStep1 = document.getElementById('pipeline-step-1');
+        const pipelineStep2 = document.getElementById('pipeline-step-2');
+        const pipelineStep3 = document.getElementById('pipeline-step-3');
+        const resOutputPlaceholder = document.getElementById('res-output-placeholder');
+        const resLoadingContainer = document.getElementById('res-loading-container');
+        const resLoadingTitle = document.getElementById('res-loading-title');
+        const resLoadingSubtitle = document.getElementById('res-loading-subtitle');
+        const resProfileContainer = document.getElementById('res-profile-container');
+        const resProfileCompanyName = document.getElementById('res-profile-company-name');
+        const resProfileMeta = document.getElementById('res-profile-meta');
+        const resProfileWhatTheyDo = document.getElementById('res-profile-what-they-do');
+        const resProfileTechStack = document.getElementById('res-profile-tech-stack');
+        const resProfileRecentNews = document.getElementById('res-profile-recent-news');
+        const resProfileBusinessNeeds = document.getElementById('res-profile-business-needs');
+        const resStep1NextBtn = document.getElementById('res-step-1-next-btn');
+        const resOppContainer = document.getElementById('res-opp-container');
+        const resOppCompanyName = document.getElementById('res-opp-company-name');
+        const resOppResultsList = document.getElementById('res-opp-results-list');
+        const resStep2BackBtn = document.getElementById('res-step-2-back-btn');
+        const resStep2NextBtn = document.getElementById('res-step-2-next-btn');
+        const resDraftsContainer = document.getElementById('res-drafts-container');
+        const resDraftsCompanyName = document.getElementById('res-drafts-company-name');
+        const resInternalDraft = document.getElementById('res-internal-draft');
+        const resOutreachDraft = document.getElementById('res-outreach-draft');
+        const resCopyInternalBtn = document.getElementById('res-copy-internal-btn');
+        const resCopyOutreachBtn = document.getElementById('res-copy-outreach-btn');
+        const resStep3BackBtn = document.getElementById('res-step-3-back-btn');
+        const resFinishBtn = document.getElementById('res-finish-btn');
 
         // --- Notifications ---
         function showNotification(title, message, type = 'info') {
@@ -1350,8 +1933,13 @@
                 
                 // Handle 429 Rate Limiting globally
                 if (response.status === 429) {
-                    showNotification("Rate Limit Exceeded", "You are sending messages too fast. Maximum 20 requests per minute are allowed.", "warning");
-                    throw new Error("Rate limit exceeded. Please wait a moment.");
+                    let errMsg = "Rate limit exceeded. Please wait a moment.";
+                    try {
+                        const data = await response.json();
+                        errMsg = data.message || data.error || data.detail || errMsg;
+                    } catch (e) {}
+                    showNotification("Rate Limit Exceeded", errMsg, "warning");
+                    throw new Error(errMsg);
                 }
 
                 // Try to parse as JSON; if it fails, throw original HTTP error status
@@ -1366,7 +1954,7 @@
                 }
                 
                 if (!response.ok) {
-                    throw new Error(data.error || data.detail || `HTTP Error ${response.status}`);
+                    throw new Error(data.message || data.error || data.detail || `HTTP Error ${response.status}`);
                 }
                 
                 return data;
@@ -1404,9 +1992,17 @@
             uploadResultsContainer.innerHTML = '';
             docsTableBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="empty-table-state">Loading document index...</td>
+                    <td colspan="6" class="empty-table-state">Loading document index...</td>
                 </tr>
             `;
+            
+            // Clear Research layout
+            if (researchCompanyInput) researchCompanyInput.value = '';
+            resetResearchPipelineUI();
+            
+            // Reset dropdowns to defaults
+            if (adminCollectionSelect) adminCollectionSelect.value = 'company_knowledge_base_gemini_3072';
+            if (chatCollectionSelect) chatCollectionSelect.value = 'company_knowledge_base_gemini_3072';
             
             // 5. Hide Admin nav button and switch views
             navAdmin.style.display = 'none';
@@ -1438,7 +2034,11 @@
             } else if (tabId === 'admin') {
                 navAdmin.classList.add('active');
                 panelAdmin.classList.add('active');
-                loadDocumentsTable();
+                if (activeAdminSubtab === 'docs') {
+                    loadDocumentsTable();
+                } else {
+                    loadReviewQueue();
+                }
             }
         }
 
@@ -1614,7 +2214,8 @@
                     body: JSON.stringify({
                         question: text,
                         conversation_id: activeConversationId,
-                        k: 5
+                        k: 5,
+                        collection: chatCollectionSelect.value
                     })
                 });
 
@@ -1696,13 +2297,14 @@
         // --- Admin Console Logic ---
         async function loadDocumentsTable() {
             try {
-                const response = await apiFetch('/admin/documents');
+                const selectedCollection = adminCollectionSelect.value;
+                const response = await apiFetch(`/admin/documents?collection=${selectedCollection}`);
                 docsTableBody.innerHTML = '';
                 
                 if (response.length === 0) {
                     docsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="5" class="empty-table-state">No documents ingested. Click upload to index policy sheets.</td>
+                            <td colspan="6" class="empty-table-state">No documents ingested. Click upload to index policy sheets.</td>
                         </tr>
                     `;
                     return;
@@ -1711,6 +2313,7 @@
                 response.forEach(doc => {
                     const row = document.createElement('tr');
                     const uploadDate = new Date(doc.upload_date).toLocaleString();
+                    const collectionDisplay = doc.collection_name === "evon_capabilities" ? "EVON Capabilities" : "Company Policies";
                     
                     row.innerHTML = `
                         <td>
@@ -1719,6 +2322,7 @@
                                 <span>${doc.filename}</span>
                             </div>
                         </td>
+                        <td><span class="doc-badge" style="background: rgba(147, 197, 253, 0.1); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.2);">${collectionDisplay}</span></td>
                         <td><span class="doc-date">${uploadDate}</span></td>
                         <td>${doc.chunk_count}</td>
                         <td><span class="doc-badge">${doc.status}</span></td>
@@ -1742,7 +2346,7 @@
             } catch (err) {
                 docsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="5" class="empty-table-state" style="color: var(--danger);">Failed to retrieve index: ${err.message}</td>
+                        <td colspan="6" class="empty-table-state" style="color: var(--danger);">Failed to retrieve index: ${err.message}</td>
                     </tr>
                 `;
             }
@@ -1777,6 +2381,20 @@
             }
         });
 
+        // --- Event Listeners and Initializations ---
+        if (adminCollectionSelect) {
+            adminCollectionSelect.addEventListener('change', loadDocumentsTable);
+        }
+        if (chatCollectionSelect) {
+            chatCollectionSelect.addEventListener('change', () => {
+                chatMessagesContainer.innerHTML = '';
+                chatMessagesContainer.appendChild(chatEmptyState);
+                chatEmptyState.style.display = 'flex';
+                generateFreshSessionId();
+                showNotification("Collection Switched", "Switched knowledge base collection. Fresh conversation started.", "info");
+            });
+        }
+        
         // --- File Upload Zone Logic ---
         dropZone.addEventListener('click', () => fileInput.click());
         
@@ -1812,6 +2430,7 @@
             
             const fileList = Array.from(files);
             const formData = new FormData();
+            formData.append('collection', adminCollectionSelect.value);
             
             fileList.forEach(file => {
                 formData.append('files', file);
@@ -1877,6 +2496,877 @@
             badge.className = `upload-result-badge ${statusType}`;
             badge.innerText = statusType;
             statusText.innerText = message;
+        }
+
+        // --- Review Queue Sub-Tab Logic ---
+        if (adminSubtabDocs) {
+            adminSubtabDocs.addEventListener('click', () => switchAdminSubtab('docs'));
+        }
+        if (adminSubtabResearch) {
+            adminSubtabResearch.addEventListener('click', () => switchAdminSubtab('research'));
+        }
+        if (adminSubtabReview) {
+            adminSubtabReview.addEventListener('click', () => switchAdminSubtab('review'));
+        }
+        if (adminSubtabOutreach) {
+            adminSubtabOutreach.addEventListener('click', () => switchAdminSubtab('outreach'));
+        }
+
+        function switchAdminSubtab(subtab) {
+            activeAdminSubtab = subtab;
+            adminSubtabDocs.classList.remove('active');
+            if (adminSubtabResearch) adminSubtabResearch.classList.remove('active');
+            adminSubtabReview.classList.remove('active');
+            adminSubtabOutreach.classList.remove('active');
+            adminViewDocs.style.display = 'none';
+            if (adminViewResearch) adminViewResearch.style.display = 'none';
+            adminViewReview.style.display = 'none';
+            adminViewOutreach.style.display = 'none';
+
+            // Styling transitions
+            adminSubtabDocs.style.background = 'none';
+            adminSubtabDocs.style.color = 'var(--text-muted)';
+            if (adminSubtabResearch) {
+                adminSubtabResearch.style.background = 'none';
+                adminSubtabResearch.style.color = 'var(--text-muted)';
+            }
+            adminSubtabReview.style.background = 'none';
+            adminSubtabReview.style.color = 'var(--text-muted)';
+            adminSubtabOutreach.style.background = 'none';
+            adminSubtabOutreach.style.color = 'var(--text-muted)';
+
+            if (subtab === 'docs') {
+                adminSubtabDocs.classList.add('active');
+                adminSubtabDocs.style.background = 'var(--primary-color)';
+                adminSubtabDocs.style.color = 'white';
+                adminViewDocs.style.display = 'block';
+                adminHeaderSubtitle.innerText = 'Manage documents stored in the company knowledge base index.';
+                loadDocumentsTable();
+            } else if (subtab === 'research') {
+                if (adminSubtabResearch) {
+                    adminSubtabResearch.classList.add('active');
+                    adminSubtabResearch.style.background = 'var(--primary-color)';
+                    adminSubtabResearch.style.color = 'white';
+                }
+                if (adminViewResearch) adminViewResearch.style.display = 'block';
+                adminHeaderSubtitle.innerText = 'Run step-by-step company RAG search research and outreach matching.';
+            } else if (subtab === 'review') {
+                adminSubtabReview.classList.add('active');
+                adminSubtabReview.style.background = 'var(--primary-color)';
+                adminSubtabReview.style.color = 'white';
+                adminViewReview.style.display = 'block';
+                adminHeaderSubtitle.innerText = 'Review, approve, or reject generated company outreach messages.';
+                loadReviewQueue();
+            } else if (subtab === 'outreach') {
+                adminSubtabOutreach.classList.add('active');
+                adminSubtabOutreach.style.background = 'var(--primary-color)';
+                adminSubtabOutreach.style.color = 'white';
+                adminViewOutreach.style.display = 'block';
+                adminHeaderSubtitle.innerText = 'Deliver and track approved outreach proposals.';
+                loadOutreachQueue();
+            }
+        }
+
+        async function loadReviewQueue() {
+            try {
+                const drafts = await apiFetch('/drafts?status_filter=pending_review');
+                pendingDrafts = drafts;
+                pendingCount.innerText = drafts.length;
+                
+                reviewListContainer.innerHTML = '';
+                
+                if (drafts.length === 0) {
+                    reviewListContainer.appendChild(reviewListEmpty);
+                    reviewListEmpty.style.display = 'block';
+                    resetReviewDetails();
+                    return;
+                }
+                
+                reviewListEmpty.style.display = 'none';
+                
+                drafts.forEach(d => {
+                    const item = document.createElement('div');
+                    item.className = 'review-item';
+                    item.style.cssText = 'padding: 16px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(13, 20, 30, 0.3); cursor: pointer; transition: all 0.2s; margin-bottom: 8px;';
+                    
+                    item.innerHTML = `
+                        <div style="font-weight: 600; font-size: 14px; color: white;">${d.company_name}</div>
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                            <span>${d.profile?.industry || 'Unknown Industry'}</span>
+                            <span>${d.created_at ? new Date(d.created_at).toLocaleDateString() : 'Recent'}</span>
+                        </div>
+                    `;
+                    
+                    item.addEventListener('click', () => selectDraftItem(d, item));
+                    reviewListContainer.appendChild(item);
+                });
+                
+                // If a draft was previously selected and is still in the queue, re-select it
+                if (selectedDraft) {
+                    const stillExists = drafts.find(d => d.draft_id === selectedDraft.draft_id);
+                    if (stillExists) {
+                        const items = reviewListContainer.querySelectorAll('.review-item');
+                        const index = drafts.findIndex(d => d.draft_id === selectedDraft.draft_id);
+                        if (index !== -1 && items[index]) {
+                            selectDraftItem(stillExists, items[index]);
+                        }
+                    } else {
+                        resetReviewDetails();
+                    }
+                }
+            } catch (err) {
+                showNotification("Queue Load Failed", `Error: ${err.message}`, "danger");
+                reviewListContainer.innerHTML = `
+                    <div style="padding: 20px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); color: #f87171; font-size: 13px; line-height: 1.5; text-align: center; margin-top: 20px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px; display: inline-block;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <div><strong>Failed to load review queue:</strong></div>
+                        <div style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">${err.message}</div>
+                    </div>
+                `;
+                resetReviewDetails();
+            }
+        }
+
+        function selectDraftItem(draft, element) {
+            selectedDraft = draft;
+            
+            // Highlight selected item
+            const items = reviewListContainer.querySelectorAll('.review-item');
+            items.forEach(it => {
+                it.style.borderColor = 'var(--card-border)';
+                it.style.background = 'rgba(13, 20, 30, 0.3)';
+            });
+            element.style.borderColor = 'var(--primary-color)';
+            element.style.background = 'rgba(147, 197, 253, 0.05)';
+            
+            displayDraftDetails(draft);
+        }
+
+        function displayDraftDetails(d) {
+            reviewDetailsPlaceholder.style.display = 'none';
+            reviewDetailsContent.style.display = 'flex';
+            
+            reviewCompanyName.innerText = d.company_name;
+            reviewCompanyMeta.innerText = `${d.profile?.industry || 'N/A'} | ${d.profile?.size_stage || 'N/A'}`;
+            reviewWhatTheyDo.innerText = d.profile?.what_they_do || 'No description available.';
+            
+            // Tech Stack
+            reviewTechStack.innerHTML = '';
+            if (d.profile?.tech_stack && d.profile.tech_stack.length > 0) {
+                d.profile.tech_stack.forEach(tech => {
+                    const badge = document.createElement('span');
+                    badge.className = 'doc-badge';
+                    badge.style.cssText = 'background: rgba(147, 197, 253, 0.1); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.2);';
+                    badge.innerText = tech;
+                    reviewTechStack.appendChild(badge);
+                });
+            } else {
+                reviewTechStack.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Not publicly available</span>';
+            }
+            
+            // Recent News
+            reviewRecentNews.innerHTML = '';
+            if (d.profile?.recent_news && d.profile.recent_news.length > 0) {
+                d.profile.recent_news.forEach(news => {
+                    const li = document.createElement('li');
+                    li.style.marginBottom = '6px';
+                    li.innerText = news;
+                    reviewRecentNews.appendChild(li);
+                });
+            } else {
+                reviewRecentNews.innerHTML = '<li style="color: var(--text-muted); font-style: italic;">No recent news items found</li>';
+            }
+            
+            // Opportunities
+            reviewOpportunitiesList.innerHTML = '';
+            if (d.opportunities === null) {
+                reviewOpportunitiesList.innerHTML = '<p style="color: #60a5fa; font-style: italic; font-size: 13px; background: rgba(96, 165, 250, 0.08); border-left: 3px solid #60a5fa; padding: 10px 14px; border-radius: 4px; line-height: 1.4;">Opportunities data not available for this older record.</p>';
+            } else if (d.opportunities && d.opportunities.length > 0) {
+                d.opportunities.forEach(opp => {
+                    const card = document.createElement('div');
+                    card.style.cssText = 'background: rgba(13, 20, 30, 0.4); border: 1px solid var(--card-border); border-radius: 8px; padding: 16px; margin-bottom: 10px;';
+                    
+                    card.innerHTML = `
+                        <div style="font-weight: 600; color: white; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                            ${opp.evon_service}
+                        </div>
+                        <div style="font-size: 12px; margin-top: 8px; background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; padding: 8px 12px; color: #f59e0b; font-family: monospace; border-radius: 0 4px 4px 0; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">
+                            <strong>Evidence Quote:</strong> "${opp.evidence_from_profile}"
+                        </div>
+                        <div style="font-size: 12.5px; margin-top: 10px; line-height: 1.5; color: var(--text-muted);">${opp.fit_explanation}</div>
+                    `;
+                    reviewOpportunitiesList.appendChild(card);
+                });
+            } else {
+                reviewOpportunitiesList.innerHTML = '<p style="color: var(--text-muted); font-style: italic; font-size: 13px;">No matching opportunities were found.</p>';
+            }
+            
+            reviewInternalDraft.innerText = d.internal_draft;
+            reviewOutreachDraft.innerText = d.outreach_draft;
+        }
+
+        function resetReviewDetails() {
+            selectedDraft = null;
+            reviewDetailsPlaceholder.style.display = 'flex';
+            reviewDetailsContent.style.display = 'none';
+        }
+
+        // Copy Text buttons
+        if (copyInternalBtn) {
+            copyInternalBtn.addEventListener('click', () => {
+                if (selectedDraft) {
+                    navigator.clipboard.writeText(selectedDraft.internal_draft);
+                    showNotification("Copied", "Internal summary copied to clipboard.", "success");
+                }
+            });
+        }
+        if (copyOutreachBtn) {
+            copyOutreachBtn.addEventListener('click', () => {
+                if (selectedDraft) {
+                    navigator.clipboard.writeText(selectedDraft.outreach_draft);
+                    showNotification("Copied", "Outreach message copied to clipboard.", "success");
+                }
+            });
+        }
+
+        // --- Approve / Reject Actions & Modal ---
+        if (reviewApproveBtn) {
+            reviewApproveBtn.addEventListener('click', () => {
+                if (!selectedDraft) return;
+                draftReviewAction = 'approve';
+                reviewModalTitle.innerText = "Approve Draft";
+                reviewModalMessage.innerHTML = `Are you sure you want to approve outreach drafts for <strong>${selectedDraft.company_name}</strong>?<br><br>This will change the status to 'approved'.`;
+                reviewModalInputContainer.style.display = 'none';
+                reviewModalConfirmBtn.className = 'btn-primary';
+                reviewModalConfirmBtn.style.background = '#10b981';
+                reviewModalConfirmBtn.innerText = 'Approve';
+                reviewConfirmModal.classList.add('active');
+            });
+        }
+
+        if (reviewRejectBtn) {
+            reviewRejectBtn.addEventListener('click', () => {
+                if (!selectedDraft) return;
+                draftReviewAction = 'reject';
+                reviewModalTitle.innerText = "Reject Draft";
+                reviewModalMessage.innerHTML = `Are you sure you want to reject outreach drafts for <strong>${selectedDraft.company_name}</strong>?`;
+                reviewModalInputContainer.style.display = 'block';
+                reviewModalRejectionReason.value = '';
+                reviewModalConfirmBtn.className = 'btn-danger';
+                reviewModalConfirmBtn.style.background = '#ef4444';
+                reviewModalConfirmBtn.innerText = 'Reject';
+                reviewConfirmModal.classList.add('active');
+            });
+        }
+
+        if (reviewModalCancelBtn) {
+            reviewModalCancelBtn.addEventListener('click', () => {
+                reviewConfirmModal.classList.remove('active');
+                draftReviewAction = '';
+            });
+        }
+
+        if (reviewModalConfirmBtn) {
+            reviewModalConfirmBtn.addEventListener('click', async () => {
+                if (!selectedDraft) return;
+                const draftId = selectedDraft.draft_id || selectedDraft.id;
+                try {
+                    if (draftReviewAction === 'approve') {
+                        await apiFetch(`/drafts/${draftId}/approve`, { method: 'POST' });
+                        showNotification("Draft Approved", `Successfully approved drafts for '${selectedDraft.company_name}'.`, "success");
+                    } else if (draftReviewAction === 'reject') {
+                        const reason = reviewModalRejectionReason.value.trim();
+                        await apiFetch(`/drafts/${draftId}/reject`, {
+                            method: 'POST',
+                            body: JSON.stringify({ reason })
+                        });
+                        showNotification("Draft Rejected", `Draft for '${selectedDraft.company_name}' has been rejected.`, "info");
+                    }
+                    reviewConfirmModal.classList.remove('active');
+                    loadReviewQueue();
+                } catch (err) {
+                    showNotification("Action Failed", `Error: ${err.message}`, "danger");
+                }
+            });
+        }
+
+        // --- Outreach Delivery Sub-Tab Logic & Events ---
+        let approvedDrafts = [];
+        let sentOutreachLog = [];
+        let selectedOutreachDraft = null;
+
+        async function loadOutreachQueue() {
+            try {
+                const approvedPromise = apiFetch('/drafts?status_filter=approved');
+                const sentPromise = apiFetch('/drafts?status_filter=sent');
+                const [approved, sent] = await Promise.all([approvedPromise, sentPromise]);
+                
+                approvedDrafts = approved;
+                sentOutreachLog = sent;
+                
+                approvedCount.innerText = approved.length;
+                sentCount.innerText = sent.length;
+                
+                // 1. approved list
+                approvedListContainer.innerHTML = '';
+                if (approved.length === 0) {
+                    approvedListContainer.appendChild(approvedListEmpty);
+                    approvedListEmpty.style.display = 'block';
+                } else {
+                    approvedListEmpty.style.display = 'none';
+                    approved.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'review-item';
+                        item.style.cssText = 'padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(13, 20, 30, 0.3); cursor: pointer; transition: all 0.2s; margin-bottom: 6px;';
+                        item.innerHTML = `
+                            <div style="font-weight: 600; font-size: 13px; color: white;">${d.company_name}</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                                <span>${d.profile?.industry || 'Unknown'}</span>
+                                <span>${d.created_at ? new Date(d.created_at).toLocaleDateString() : 'Recent'}</span>
+                            </div>
+                        `;
+                        item.addEventListener('click', () => selectOutreachItem(d, item, 'approved'));
+                        approvedListContainer.appendChild(item);
+                    });
+                }
+                
+                // 2. sent list
+                sentListContainer.innerHTML = '';
+                if (sent.length === 0) {
+                    sentListContainer.appendChild(sentListEmpty);
+                    sentListEmpty.style.display = 'block';
+                } else {
+                    sentListEmpty.style.display = 'none';
+                    sent.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'review-item';
+                        item.style.cssText = 'padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(13, 20, 30, 0.3); cursor: pointer; transition: all 0.2s; margin-bottom: 6px;';
+                        
+                        const isDry = d.status === 'sent_dryrun';
+                        const badgeHtml = isDry ? 
+                            `<span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;">DRY RUN</span>` : 
+                            `<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;">SENT</span>`;
+
+                        item.innerHTML = `
+                            <div style="font-weight: 600; font-size: 13px; color: white; display: flex; justify-content: space-between; align-items: center;">
+                                <span>${d.company_name}</span>
+                                ${badgeHtml}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                                <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px;">To: ${d.sent_to || 'N/A'}</span>
+                                <span>${d.sent_at ? new Date(d.sent_at).toLocaleDateString() : 'Recent'}</span>
+                            </div>
+                        `;
+                        item.addEventListener('click', () => selectOutreachItem(d, item, 'sent'));
+                        sentListContainer.appendChild(item);
+                    });
+                }
+                
+                // Keep selected item active if loaded
+                if (selectedOutreachDraft) {
+                    const isApproved = approved.find(x => x.draft_id === selectedOutreachDraft.draft_id);
+                    const isSent = sent.find(x => x.draft_id === selectedOutreachDraft.draft_id);
+                    const found = isApproved || isSent;
+                    if (found) {
+                        const type = isApproved ? 'approved' : 'sent';
+                        const container = isApproved ? approvedListContainer : sentListContainer;
+                        const index = (isApproved ? approved : sent).findIndex(x => x.draft_id === selectedOutreachDraft.draft_id);
+                        const items = container.querySelectorAll('.review-item');
+                        if (index !== -1 && items[index]) {
+                            selectOutreachItem(found, items[index], type);
+                        }
+                    } else {
+                        resetOutreachDetails();
+                    }
+                } else {
+                    resetOutreachDetails();
+                }
+            } catch (err) {
+                showNotification("Outreach Queues Failed", `Error: ${err.message}`, "danger");
+            }
+        }
+
+        function resetOutreachDetails() {
+            selectedOutreachDraft = null;
+            outreachDetailsPlaceholder.style.display = 'flex';
+            outreachDetailsContent.style.display = 'none';
+        }
+
+        function parseSubjectAndBody(text) {
+            let subject = '';
+            let body = text || '';
+            if (text && text.trim().startsWith('Subject:')) {
+                const lines = text.split('\n');
+                const subjectLine = lines[0];
+                subject = subjectLine.replace(/^Subject:\s*/i, '').trim();
+                body = lines.slice(1).join('\n').trim();
+            }
+            return { subject, body };
+        }
+
+        function selectOutreachItem(draft, element, type) {
+            selectedOutreachDraft = draft;
+            
+            // Highlight selected item
+            const items = document.querySelectorAll('#approved-list-container .review-item, #sent-list-container .review-item');
+            items.forEach(it => {
+                it.style.background = 'rgba(13, 20, 30, 0.3)';
+                it.style.borderColor = 'var(--card-border)';
+            });
+            element.style.background = 'rgba(59, 130, 246, 0.1)';
+            element.style.borderColor = 'var(--primary-color)';
+            
+            outreachDetailsPlaceholder.style.display = 'none';
+            outreachDetailsContent.style.display = 'flex';
+            
+            outreachCompanyName.innerText = draft.company_name;
+            outreachCompanyMeta.innerText = `${draft.profile?.industry || 'Unknown Industry'} | ${draft.profile?.size_stage || 'Unknown Stage'}`;
+            
+            if (type === 'approved') {
+                outreachStatusBadge.innerText = 'Approved';
+                outreachStatusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                outreachStatusBadge.style.color = '#10b981';
+                outreachStatusBadge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                
+                outreachSentBanner.style.display = 'none';
+                
+                if (draft.send_error) {
+                    outreachErrorBanner.style.display = 'block';
+                    outreachErrorText.innerText = draft.send_error;
+                } else {
+                    outreachErrorBanner.style.display = 'none';
+                }
+                
+                outreachRecipientInput.readOnly = false;
+                outreachSubjectInput.readOnly = false;
+                outreachBodyTextarea.readOnly = false;
+                outreachSendBtn.style.display = 'flex';
+                
+                const parsed = parseSubjectAndBody(draft.outreach_draft);
+                outreachSubjectInput.value = parsed.subject || `Outreach to ${draft.company_name}`;
+                outreachBodyTextarea.value = parsed.body;
+                
+                // Discovered emails suggestions
+                const emails = draft.recipient_emails || [];
+                outreachEmailChips.innerHTML = '';
+                if (emails.length === 0) {
+                    outreachNoEmailWarning.style.display = 'block';
+                    outreachSuggestionsContainer.style.display = 'none';
+                    outreachRecipientInput.value = '';
+                } else {
+                    outreachNoEmailWarning.style.display = 'none';
+                    outreachSuggestionsContainer.style.display = 'block';
+                    outreachRecipientInput.value = emails[0];
+                    
+                    emails.forEach(email => {
+                        const chip = document.createElement('span');
+                        chip.style.cssText = 'cursor: pointer; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; display: inline-block;';
+                        chip.innerText = email;
+                        chip.addEventListener('click', () => {
+                            outreachRecipientInput.value = email;
+                        });
+                        outreachEmailChips.appendChild(chip);
+                    });
+                }
+            } else { // type === 'sent'
+                const isDryRun = draft.status === 'sent_dryrun';
+                if (isDryRun) {
+                    outreachStatusBadge.innerText = '⚠️ DRY RUN — NOT ACTUALLY SENT';
+                    outreachStatusBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+                    outreachStatusBadge.style.color = '#f59e0b';
+                    outreachStatusBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+                    
+                    outreachSentBanner.style.background = 'rgba(245, 158, 11, 0.1)';
+                    outreachSentBanner.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+                    outreachSentBanner.style.color = '#f59e0b';
+                    outreachSentBanner.innerHTML = `⚠️ Simulated Send (Dry Run) on <strong id="outreach-sent-time">${draft.sent_at ? new Date(draft.sent_at).toLocaleString() : 'N/A'}</strong> to <strong id="outreach-sent-address">${draft.sent_to || 'N/A'}</strong> (No email was transmitted)`;
+                } else {
+                    outreachStatusBadge.innerText = 'Sent';
+                    outreachStatusBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+                    outreachStatusBadge.style.color = '#3b82f6';
+                    outreachStatusBadge.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+                    
+                    outreachSentBanner.style.background = 'rgba(16, 185, 129, 0.1)';
+                    outreachSentBanner.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                    outreachSentBanner.style.color = '#34d399';
+                    outreachSentBanner.innerHTML = `Sent on <strong id="outreach-sent-time">${draft.sent_at ? new Date(draft.sent_at).toLocaleString() : 'N/A'}</strong> to <strong id="outreach-sent-address">${draft.sent_to || 'N/A'}</strong>`;
+                }
+                
+                outreachErrorBanner.style.display = 'none';
+                outreachSentBanner.style.display = 'block';
+                
+                outreachNoEmailWarning.style.display = 'none';
+                outreachSuggestionsContainer.style.display = 'none';
+                
+                outreachRecipientInput.value = draft.sent_to || '';
+                outreachRecipientInput.readOnly = true;
+                outreachSubjectInput.value = draft.outreach_draft ? parseSubjectAndBody(draft.outreach_draft).subject : '';
+                outreachSubjectInput.readOnly = true;
+                outreachBodyTextarea.value = draft.outreach_draft ? parseSubjectAndBody(draft.outreach_draft).body : '';
+                outreachBodyTextarea.readOnly = true;
+                
+                outreachSendBtn.style.display = 'none';
+            }
+        }
+
+        // Action event handlers
+        if (outreachCopyBodyBtn) {
+            outreachCopyBodyBtn.addEventListener('click', () => {
+                if (selectedOutreachDraft) {
+                    const fullDraftText = `Subject: ${outreachSubjectInput.value}\n\n${outreachBodyTextarea.value}`;
+                    navigator.clipboard.writeText(fullDraftText);
+                    showNotification("Copied", "Outreach message copied to clipboard.", "success");
+                }
+            });
+        }
+
+        if (outreachSendBtn) {
+            outreachSendBtn.addEventListener('click', () => {
+                if (!selectedOutreachDraft) return;
+                
+                const recipient = outreachRecipientInput.value.trim();
+                const subject = outreachSubjectInput.value.trim();
+                const body = outreachBodyTextarea.value.trim();
+                
+                if (!recipient) {
+                    showNotification("Validation Error", "Recipient email is required.", "warning");
+                    return;
+                }
+                
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(recipient)) {
+                    showNotification("Validation Error", "Please enter a valid email address.", "warning");
+                    return;
+                }
+                
+                if (!subject) {
+                    showNotification("Validation Error", "Subject is required.", "warning");
+                    return;
+                }
+                
+                if (!body) {
+                    showNotification("Validation Error", "Message body is required.", "warning");
+                    return;
+                }
+                
+                // Show modal
+                outreachModalRecipient.innerText = recipient;
+                outreachModalSubject.innerText = subject;
+                outreachModalBodyPreview.innerText = body;
+                outreachModalVerifyCheckbox.checked = false;
+                outreachModalConfirmBtn.disabled = true;
+                
+                outreachSendModal.classList.add('active');
+            });
+        }
+
+        if (outreachModalCloseBtn) {
+            outreachModalCloseBtn.addEventListener('click', () => {
+                outreachSendModal.classList.remove('active');
+            });
+        }
+        if (outreachModalCancelBtn) {
+            outreachModalCancelBtn.addEventListener('click', () => {
+                outreachSendModal.classList.remove('active');
+            });
+        }
+
+        if (outreachModalVerifyCheckbox) {
+            outreachModalVerifyCheckbox.addEventListener('change', (e) => {
+                outreachModalConfirmBtn.disabled = !e.target.checked;
+            });
+        }
+
+        if (outreachModalConfirmBtn) {
+            outreachModalConfirmBtn.addEventListener('click', async () => {
+                if (!selectedOutreachDraft) return;
+                
+                const recipient = outreachRecipientInput.value.trim();
+                const subject = outreachSubjectInput.value.trim();
+                const body = outreachBodyTextarea.value.trim();
+                const draftId = selectedOutreachDraft.draft_id || selectedOutreachDraft.id;
+                
+                outreachModalConfirmBtn.disabled = true;
+                outreachModalConfirmBtn.innerText = "Sending...";
+                
+                try {
+                    const res = await apiFetch(`/drafts/${draftId}/send`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            recipient_email: recipient,
+                            subject: subject,
+                            body: body
+                        })
+                    });
+                    
+                    if (res.dry_run) {
+                        showNotification("Simulated Send Successful", "Running in Dry-Run Mode. Check server logs.", "warning");
+                    } else {
+                        showNotification("Email Sent", `Successfully sent outreach to '${recipient}'.`, "success");
+                    }
+                    
+                    outreachSendModal.classList.remove('active');
+                    await loadOutreachQueue();
+                } catch (err) {
+                    showNotification("Delivery Failed", `Error: ${err.message}`, "danger");
+                } finally {
+                    outreachModalConfirmBtn.disabled = false;
+                    outreachModalConfirmBtn.innerText = "Confirm & Send";
+                }
+            });
+        }
+
+        // --- Company Research Pipeline Logic & Events ---
+        let activeResearchId = '';
+        let activeResearchProfile = null;
+        let activeOpportunities = null;
+        let activeDrafts = null;
+
+        function resetResearchPipelineUI() {
+            activeResearchId = '';
+            activeResearchProfile = null;
+            activeOpportunities = null;
+            activeDrafts = null;
+            
+            pipelineStep1.style.opacity = '0.4';
+            pipelineStep2.style.opacity = '0.4';
+            pipelineStep3.style.opacity = '0.4';
+            
+            pipelineStep1.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+            pipelineStep2.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+            pipelineStep3.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+            
+            resOutputPlaceholder.style.display = 'flex';
+            resLoadingContainer.style.display = 'none';
+            resProfileContainer.style.display = 'none';
+            resOppContainer.style.display = 'none';
+            resDraftsContainer.style.display = 'none';
+        }
+
+        if (researchInputForm) {
+            researchInputForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const companyInput = researchCompanyInput.value.trim();
+                if (!companyInput) return;
+                
+                resetResearchPipelineUI();
+                
+                resOutputPlaceholder.style.display = 'none';
+                resLoadingContainer.style.display = 'flex';
+                resLoadingTitle.innerText = "Performing Live Web Research...";
+                resLoadingSubtitle.innerText = "Tavily is searching live indexes. This step typically takes 10 to 30 seconds.";
+                
+                pipelineStep1.style.opacity = '1';
+                pipelineStep1.querySelector('.pipeline-number').style.background = 'var(--primary-color)';
+                
+                try {
+                    const data = await apiFetch('/research', {
+                        method: 'POST',
+                        body: JSON.stringify({ company: companyInput })
+                    });
+                    
+                    activeResearchId = data.research_id;
+                    activeResearchProfile = data;
+                    
+                    resProfileCompanyName.innerText = activeResearchProfile.company_name;
+                    resProfileMeta.innerText = `${activeResearchProfile.industry || 'Unknown Industry'} | ${activeResearchProfile.size_stage || 'Unknown Size'}`;
+                    resProfileWhatTheyDo.innerText = activeResearchProfile.what_they_do || 'No description available.';
+                    
+                    resProfileTechStack.innerHTML = '';
+                    if (activeResearchProfile.tech_stack && activeResearchProfile.tech_stack.length > 0) {
+                        activeResearchProfile.tech_stack.forEach(tech => {
+                            const badge = document.createElement('span');
+                            badge.className = 'doc-badge';
+                            badge.style.cssText = 'background: rgba(147, 197, 253, 0.1); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.2);';
+                            badge.innerText = tech;
+                            resProfileTechStack.appendChild(badge);
+                        });
+                    } else {
+                        resProfileTechStack.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Not publicly available</span>';
+                    }
+                    
+                    resProfileRecentNews.innerHTML = '';
+                    if (activeResearchProfile.recent_news && activeResearchProfile.recent_news.length > 0) {
+                        activeResearchProfile.recent_news.forEach(news => {
+                            const li = document.createElement('li');
+                            li.style.marginBottom = '6px';
+                            li.innerText = news;
+                            resProfileRecentNews.appendChild(li);
+                        });
+                    } else {
+                        resProfileRecentNews.innerHTML = '<li style="color: var(--text-muted); font-style: italic;">No recent news items found</li>';
+                    }
+                    
+                    resProfileBusinessNeeds.innerHTML = '';
+                    if (activeResearchProfile.business_needs && activeResearchProfile.business_needs.length > 0) {
+                        activeResearchProfile.business_needs.forEach(need => {
+                            const li = document.createElement('li');
+                            li.style.marginBottom = '6px';
+                            li.innerText = need;
+                            resProfileBusinessNeeds.appendChild(li);
+                        });
+                    } else {
+                        resProfileBusinessNeeds.innerHTML = '<li style="color: var(--text-muted); font-style: italic;">No business needs identified</li>';
+                    }
+                    
+                    resLoadingContainer.style.display = 'none';
+                    resProfileContainer.style.display = 'flex';
+                    showNotification("Research Complete", `Successfully researched '${activeResearchProfile.company_name}'.`, "success");
+                } catch (err) {
+                    resLoadingContainer.style.display = 'none';
+                    resOutputPlaceholder.style.display = 'flex';
+                    pipelineStep1.style.opacity = '0.4';
+                    pipelineStep1.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+                    showNotification("Research Failed", `Error: ${err.message}`, "danger");
+                }
+            });
+        }
+
+        if (resStep1NextBtn) {
+            resStep1NextBtn.addEventListener('click', async () => {
+                if (!activeResearchId) return;
+                
+                resProfileContainer.style.display = 'none';
+                resLoadingContainer.style.display = 'flex';
+                resLoadingTitle.innerText = "Finding Alignment Opportunities...";
+                resLoadingSubtitle.innerText = "Comparing business needs with EVON capability index using ChromaDB & LLM matching (typically 10-25s)...";
+                
+                pipelineStep2.style.opacity = '1';
+                pipelineStep2.querySelector('.pipeline-number').style.background = 'var(--primary-color)';
+                
+                try {
+                    const data = await apiFetch('/opportunities', {
+                        method: 'POST',
+                        body: JSON.stringify({ research_id: activeResearchId })
+                    });
+                    
+                    activeOpportunities = data.opportunities || [];
+                    
+                    resOppCompanyName.innerText = activeResearchProfile.company_name;
+                    resOppResultsList.innerHTML = '';
+                    
+                    if (activeOpportunities.length === 0) {
+                        resOppResultsList.innerHTML = `<p style="color: var(--text-muted); font-style: italic; font-size: 13px; text-align: center; margin-top: 20px;">No matching sales opportunities were identified for this company.</p>`;
+                    } else {
+                        activeOpportunities.forEach(opp => {
+                            const card = document.createElement('div');
+                            card.style.cssText = 'background: rgba(13, 20, 30, 0.4); border: 1px solid var(--card-border); border-radius: 8px; padding: 16px; margin-bottom: 10px;';
+                            card.innerHTML = `
+                                <div style="font-weight: 600; color: white; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                                    ${opp.evon_service}
+                                </div>
+                                <div style="font-size: 11.5px; margin-top: 8px; background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; padding: 6px 10px; color: #f59e0b; font-family: monospace; border-radius: 0 4px 4px 0; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">
+                                    <strong>Evidence Quote:</strong> "${opp.evidence_from_profile}"
+                                </div>
+                                <div style="font-size: 12px; margin-top: 10px; line-height: 1.5; color: var(--text-muted);">${opp.fit_explanation}</div>
+                            `;
+                            resOppResultsList.appendChild(card);
+                        });
+                    }
+                    
+                    resLoadingContainer.style.display = 'none';
+                    resOppContainer.style.display = 'flex';
+                    showNotification("Matching Complete", `Identified ${activeOpportunities.length} opportunities.`, "success");
+                } catch (err) {
+                    resLoadingContainer.style.display = 'none';
+                    resProfileContainer.style.display = 'flex';
+                    pipelineStep2.style.opacity = '0.4';
+                    pipelineStep2.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+                    showNotification("Opportunities Search Failed", `Error: ${err.message}`, "danger");
+                }
+            });
+        }
+
+        if (resStep2BackBtn) {
+            resStep2BackBtn.addEventListener('click', () => {
+                resOppContainer.style.display = 'none';
+                resProfileContainer.style.display = 'flex';
+                
+                pipelineStep2.style.opacity = '0.4';
+                pipelineStep2.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+            });
+        }
+
+        if (resStep2NextBtn) {
+            resStep2NextBtn.addEventListener('click', async () => {
+                if (!activeResearchId) return;
+                
+                resOppContainer.style.display = 'none';
+                resLoadingContainer.style.display = 'flex';
+                resLoadingTitle.innerText = "Generating Outreach Drafts...";
+                resLoadingSubtitle.innerText = "Using Gemini LLM to write internal value fits and BDR email drafts (typically 15-40s)...";
+                
+                pipelineStep3.style.opacity = '1';
+                pipelineStep3.querySelector('.pipeline-number').style.background = 'var(--primary-color)';
+                
+                try {
+                    const data = await apiFetch('/drafts', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            research_id: activeResearchId,
+                            opportunities: activeOpportunities
+                        })
+                    });
+                    
+                    activeDrafts = data;
+                    
+                    resDraftsCompanyName.innerText = activeResearchProfile.company_name;
+                    resInternalDraft.innerText = activeDrafts.internal_draft;
+                    resOutreachDraft.innerText = activeDrafts.outreach_draft;
+                    
+                    resLoadingContainer.style.display = 'none';
+                    resDraftsContainer.style.display = 'flex';
+                    showNotification("Drafts Generated", "Successfully completed prospect generation!", "success");
+                } catch (err) {
+                    resLoadingContainer.style.display = 'none';
+                    resOppContainer.style.display = 'flex';
+                    pipelineStep3.style.opacity = '0.4';
+                    pipelineStep3.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+                    
+                    if (err.message && err.message.includes("quota_exceeded")) {
+                        showNotification("Quota Exceeded", "Gemini API daily limit reached. Please try again later.", "danger");
+                    } else {
+                        showNotification("Draft Generation Failed", `Error: ${err.message}`, "danger");
+                    }
+                }
+            });
+        }
+
+        if (resStep3BackBtn) {
+            resStep3BackBtn.addEventListener('click', () => {
+                resDraftsContainer.style.display = 'none';
+                resOppContainer.style.display = 'flex';
+                
+                pipelineStep3.style.opacity = '0.4';
+                pipelineStep3.querySelector('.pipeline-number').style.background = 'var(--card-border)';
+            });
+        }
+
+        if (resCopyInternalBtn) {
+            resCopyInternalBtn.addEventListener('click', () => {
+                if (activeDrafts) {
+                    navigator.clipboard.writeText(activeDrafts.internal_draft);
+                    showNotification("Copied", "Internal summary copied to clipboard.", "success");
+                }
+            });
+        }
+        
+        if (resCopyOutreachBtn) {
+            resCopyOutreachBtn.addEventListener('click', () => {
+                if (activeDrafts) {
+                    navigator.clipboard.writeText(activeDrafts.outreach_draft);
+                    showNotification("Copied", "Outreach message copied to clipboard.", "success");
+                }
+            });
+        }
+
+        if (resFinishBtn) {
+            resFinishBtn.addEventListener('click', () => {
+                resetResearchPipelineUI();
+                switchAdminSubtab('review');
+            });
         }
 
     </script>

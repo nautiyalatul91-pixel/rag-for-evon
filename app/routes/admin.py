@@ -3,8 +3,8 @@ import uuid
 import shutil
 import tempfile
 import hashlib
-from typing import List
-from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends
+from typing import List, Optional
+from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends, Form
 
 from app.config import logger, audit_logger
 from app.models.responses import UploadResponse, UploadStatus, DocumentMetadata, DeleteResponse
@@ -26,7 +26,11 @@ def calculate_sha256(file_obj) -> str:
     return hasher.hexdigest()
 
 @router.post("/upload", response_model=UploadResponse)
-def upload_documents(files: List[UploadFile] = File(...), current_user: dict = Depends(require_admin)):
+def upload_documents(
+    files: List[UploadFile] = File(...),
+    collection: str = Form("company_knowledge_base_gemini_3072"),
+    current_user: dict = Depends(require_admin)
+):
     """
     Ingests one or more documents (PDF, DOCX, XLSX, TXT) synchronously.
     Validates file extension and size (< 20MB) early.
@@ -34,8 +38,14 @@ def upload_documents(files: List[UploadFile] = File(...), current_user: dict = D
     """
     username = current_user["username"]
     role = current_user["role"]
-    logger.info("User '%s' (role: '%s') requested upload of %d files.", username, role, len(files))
+    logger.info("User '%s' (role: '%s') requested upload of %d files to collection '%s'.", username, role, len(files), collection)
     
+    valid_collections = {"company_knowledge_base_gemini_3072", "evon_capabilities"}
+    if collection not in valid_collections:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid collection: '{collection}'. Allowed collections: {list(valid_collections)}."
+        )
     ALLOWED_EXTENSIONS = {"pdf", "docx", "xlsx", "txt"}
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 
@@ -89,7 +99,7 @@ def upload_documents(files: List[UploadFile] = File(...), current_user: dict = D
                     content_hash = calculate_sha256(f)
 
                 # Check for duplicates (filename or content hash)
-                is_duplicate, duplicate_reason = db_service.check_duplicate(filename, content_hash)
+                is_duplicate, duplicate_reason = db_service.check_duplicate(filename, content_hash, collection_name=collection)
                 if is_duplicate:
                     logger.warning("Duplicate detected for file %s: %s", filename, duplicate_reason)
                     failed_statuses.append(UploadStatus(
@@ -100,7 +110,7 @@ def upload_documents(files: List[UploadFile] = File(...), current_user: dict = D
                     continue
 
                 # Create document record in SQLite (status: processing)
-                db_service.create_document_record(doc_id, filename, content_hash)
+                db_service.create_document_record(doc_id, filename, content_hash, collection_name=collection)
 
                 # A. Parse the document
                 pages = parser_service.parse_file(temp_path, filename)
@@ -127,7 +137,7 @@ def upload_documents(files: List[UploadFile] = File(...), current_user: dict = D
                     )
 
                 # D. Store in ChromaDB
-                db_service.add_chunks_to_chroma(doc_id, filename, content_hash, chunks, all_embeddings)
+                db_service.add_chunks_to_chroma(doc_id, filename, content_hash, chunks, all_embeddings, collection_name=collection)
 
                 # E. Update status to completed
                 db_service.update_document_status(doc_id, "completed", len(chunks))
@@ -183,13 +193,22 @@ def upload_documents(files: List[UploadFile] = File(...), current_user: dict = D
         raise e
 
 @router.get("/documents", response_model=List[DocumentMetadata])
-def list_documents(current_user: dict = Depends(require_admin)):
-    """List all ingested documents with metadata."""
+def list_documents(collection: Optional[str] = None, current_user: dict = Depends(require_admin)):
+    """List all ingested documents with metadata, optionally filtered by collection."""
     username = current_user["username"]
     role = current_user["role"]
-    logger.info("Listing all ingested documents.")
+    logger.info("Listing all ingested documents. Filter collection: %s", collection)
+    
+    if collection:
+        valid_collections = {"company_knowledge_base_gemini_3072", "evon_capabilities"}
+        if collection not in valid_collections:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid collection filter: '{collection}'."
+            )
+            
     try:
-        docs = db_service.get_all_documents()
+        docs = db_service.get_all_documents(collection_name=collection)
         audit_logger.info(
             "User: %s | Role: %s | Endpoint: GET /admin/documents | Success: True | Details: Listed %d documents",
             username, role, len(docs)
@@ -200,7 +219,8 @@ def list_documents(current_user: dict = Depends(require_admin)):
                 filename=doc["filename"],
                 upload_date=doc["upload_date"],
                 chunk_count=doc["chunk_count"],
-                status=doc["status"]
+                status=doc["status"],
+                collection_name=doc.get("collection_name", "company_knowledge_base_gemini_3072")
             )
             for doc in docs
         ]

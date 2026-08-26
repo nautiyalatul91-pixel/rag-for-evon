@@ -5,6 +5,7 @@ class ChatRequest(BaseModel):
     question: str = Field(..., description="The user's question in natural language.")
     conversation_id: Optional[str] = Field(None, description="Optional conversation session ID for multi-turn history.")
     k: int = Field(5, description="Number of context chunks to retrieve.")
+    collection: Optional[str] = Field(None, description="The specific ChromaDB collection to query.")
 
 class SourceSnippet(BaseModel):
     filename: str = Field(..., description="The name of the source document.")

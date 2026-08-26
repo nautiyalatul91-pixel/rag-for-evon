@@ -34,9 +34,18 @@ def query_chat(
         logger.info("Received chat query. Conversation ID: %s", conversation_id)
 
         # 1. Retrieve relevant chunks from ChromaDB
+        collection_name = request.collection or "company_knowledge_base_gemini_3072"
+        valid_collections = {"company_knowledge_base_gemini_3072", "evon_capabilities"}
+        if collection_name not in valid_collections:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid collection: '{collection_name}'. Allowed collections: {list(valid_collections)}."
+            )
+
         relevant_chunks, all_distances = retrieval_service.retrieve_relevant_chunks(
             question=question, 
-            k=request.k
+            k=request.k,
+            collection_name=collection_name
         )
 
         # 2. No-answer Handling

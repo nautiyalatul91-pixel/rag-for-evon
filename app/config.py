@@ -18,6 +18,7 @@ CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", str(DATA_DIR / "chroma_db"))
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(DATA_DIR / "metadata.db"))
 MOCK_EMBEDDINGS = os.getenv("MOCK_EMBEDDINGS", "false").lower() == "true"
 RETRIEVAL_THRESHOLD = float(os.getenv("RETRIEVAL_THRESHOLD", "0.8"))
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 # JWT & CORS configurations
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_unsafe_key_for_development_change_it")

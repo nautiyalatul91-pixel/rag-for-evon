@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import logger, HOST, PORT, ALLOWED_ORIGINS
-from app.routes import admin, chat, auth
+from app.routes import admin, chat, auth, research, opportunities, drafts
 
 app = FastAPI(
     title="RAG Chatbot Backend API",
@@ -28,6 +28,9 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(chat.router)
+app.include_router(research.router)
+app.include_router(opportunities.router)
+app.include_router(drafts.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

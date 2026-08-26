@@ -7,7 +7,7 @@ from app.services.db_service import db_service
 class LLMService:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
-        self.model_name = "gemini-flash-latest"
+        self.model_name = "gemini-3.6-flash"
         self.temperature = 0.2
         self.max_prompt_tokens = 6000  # Safety cap for prompt size
         

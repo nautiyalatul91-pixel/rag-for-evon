@@ -7,6 +7,7 @@ class DocumentMetadata(BaseModel):
     upload_date: str
     chunk_count: int
     status: str
+    collection_name: str
 
 class UploadStatus(BaseModel):
     filename: str

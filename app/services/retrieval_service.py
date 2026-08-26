@@ -4,7 +4,7 @@ from app.services.db_service import db_service
 from app.services.embedding_service import embedding_service
 
 class RetrievalService:
-    def retrieve_relevant_chunks(self, question: str, k: int = 5) -> Tuple[List[Dict[str, Any]], List[float]]:
+    def retrieve_relevant_chunks(self, question: str, k: int = 5, collection_name: str = "company_knowledge_base_gemini_3072") -> Tuple[List[Dict[str, Any]], List[float]]:
         """
         Embeds the question, searches the ChromaDB vector database,
         logs L2 distance scores, and filters chunks by threshold.
@@ -12,7 +12,7 @@ class RetrievalService:
         Returns:
             Tuple[List[Dict], List[float]]: (filtered_relevant_chunks, all_distance_scores)
         """
-        logger.info("Starting retrieval for question: '%s' (k=%d)", question, k)
+        logger.info("Starting retrieval for question: '%s' in collection '%s' (k=%d)", question, collection_name, k)
 
         # 1. Embed the query
         try:
@@ -25,7 +25,10 @@ class RetrievalService:
         # 2. Query ChromaDB
         # We query for up to k results
         try:
-            results = db_service.collection.query(
+            target_collection = db_service.collections.get(collection_name)
+            if not target_collection:
+                raise ValueError(f"ChromaDB collection '{collection_name}' not configured.")
+            results = target_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=k,
                 include=["documents", "metadatas", "distances"]

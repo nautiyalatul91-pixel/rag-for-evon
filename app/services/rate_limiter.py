@@ -31,9 +31,15 @@ class RateLimiter:
         # Check limit breach
         if len(user_history) >= self.limit:
             logger.warning("Rate limit exceeded for user '%s'. Request blocked.", username)
+            if self.window_seconds == 60:
+                time_unit = "minute"
+            elif self.window_seconds == 3600:
+                time_unit = "hour"
+            else:
+                time_unit = f"{self.window_seconds} seconds"
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Maximum {self.limit} requests per minute are allowed."
+                detail=f"Rate limit exceeded. Maximum {self.limit} requests per {time_unit} are allowed."
             )
             
         # Record new request
@@ -41,3 +47,6 @@ class RateLimiter:
 
 # Global rate limiter instance (defaults to 20 requests per 60 seconds)
 chat_rate_limiter = RateLimiter(limit=20, window_seconds=60)
+
+# Research endpoint rate limiter (10 requests per hour)
+research_rate_limiter = RateLimiter(limit=10, window_seconds=3600)
