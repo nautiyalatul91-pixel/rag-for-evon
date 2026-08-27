@@ -253,6 +253,24 @@ async def approve_draft(
             detail=f"Draft with ID '{draft_id}' not found."
         )
         
+    # Check if the draft is a refusal/no-opportunity placeholder
+    opps = draft.get("opportunities")
+    outreach_txt = draft.get("outreach_draft", "")
+    is_refusal = (
+        opps is None or
+        len(opps) == 0 or
+        "no genuine business opportunity was identified" in outreach_txt.lower()
+    )
+    if is_refusal:
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: POST /drafts/%s/approve | Success: False | Details: Cannot approve draft with no genuine opportunities",
+            username, role, draft_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot approve: no genuine opportunity was found for this company."
+        )
+        
     success = db_service.update_draft_status(draft_id, "approved")
     if not success:
         raise HTTPException(
@@ -364,6 +382,26 @@ async def send_draft_outreach(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Draft with ID '{draft_id}' not found."
+        )
+        
+    # Check if the draft is a refusal/no-opportunity placeholder
+    opps = draft.get("opportunities")
+    outreach_txt = draft.get("outreach_draft", "")
+    is_refusal = (
+        opps is None or
+        len(opps) == 0 or
+        "no genuine business opportunity was identified" in outreach_txt.lower() or
+        "no genuine business opportunity was identified" in req.subject.lower() or
+        "no genuine business opportunity was identified" in req.body.lower()
+    )
+    if is_refusal:
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: POST /drafts/%s/send | Success: False | Details: Cannot send draft with no genuine opportunities",
+            username, role, draft_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot send: no genuine opportunity was found for this company."
         )
         
     # 2. Check status is 'approved'
