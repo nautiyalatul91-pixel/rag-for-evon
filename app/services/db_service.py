@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import chromadb
 from datetime import datetime
@@ -86,7 +87,35 @@ class DBService:
             if "send_error" not in columns:
                 conn.execute("ALTER TABLE drafts ADD COLUMN send_error TEXT")
             
-            # 2. Check if documents table exists
+            # 2. Create roles table and seed default roles if empty
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS roles (
+                    role_id TEXT PRIMARY KEY,
+                    role_name TEXT NOT NULL,
+                    hierarchy_position INTEGER NOT NULL,
+                    can_upload BOOLEAN NOT NULL DEFAULT 0,
+                    is_protected BOOLEAN NOT NULL DEFAULT 0
+                )
+            """)
+            cursor = conn.execute("SELECT COUNT(*) FROM roles")
+            if cursor.fetchone()[0] == 0:
+                logger.info("Seeding default roles into SQLite roles table...")
+                default_roles = [
+                    ("admin", "Admin", 1, 1, 1),
+                    ("co_founder", "Co-founder", 2, 1, 0),
+                    ("programmer", "Programmer", 3, 0, 0),
+                    ("tester", "Tester", 4, 0, 0),
+                    ("employee", "Employee", 5, 0, 0),
+                ]
+                conn.executemany(
+                    """
+                    INSERT INTO roles (role_id, role_name, hierarchy_position, can_upload, is_protected)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    default_roles
+                )
+
+            # 3. Check if documents table exists
             cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
             table_exists = cursor.fetchone()
             
@@ -139,6 +168,29 @@ class DBService:
                     # D. Drop the old table
                     conn.execute("DROP TABLE documents_old")
                     logger.info("SQLite documents table migration completed successfully.")
+
+            # 4. Check if allowed_roles, uploader_username, uploader_role exist on documents
+            cursor = conn.execute("PRAGMA table_info(documents)")
+            columns = [row['name'] for row in cursor.fetchall()]
+            if 'allowed_roles' not in columns:
+                logger.info("Migrating SQLite documents table to support allowed_roles...")
+                conn.execute("ALTER TABLE documents ADD COLUMN allowed_roles TEXT")
+            if 'uploader_username' not in columns:
+                logger.info("Migrating SQLite documents table to support uploader_username...")
+                conn.execute("ALTER TABLE documents ADD COLUMN uploader_username TEXT DEFAULT 'Unknown'")
+            if 'uploader_role' not in columns:
+                logger.info("Migrating SQLite documents table to support uploader_role...")
+                conn.execute("ALTER TABLE documents ADD COLUMN uploader_role TEXT DEFAULT 'Unknown'")
+
+            # One-time migration for existing documents missing allowed_roles
+            all_roles_cursor = conn.execute("SELECT role_id FROM roles")
+            all_role_ids = [r['role_id'] for r in all_roles_cursor.fetchall()]
+            if all_role_ids:
+                all_roles_json = json.dumps(all_role_ids)
+                conn.execute("UPDATE documents SET allowed_roles = ? WHERE allowed_roles IS NULL", (all_roles_json,))
+                conn.execute("UPDATE documents SET uploader_username = 'Unknown' WHERE uploader_username IS NULL")
+                conn.execute("UPDATE documents SET uploader_role = 'Unknown' WHERE uploader_role IS NULL")
+
             conn.commit()
 
     def _init_chroma(self):
@@ -154,6 +206,46 @@ class DBService:
         }
         # Maintain backward compatibility reference for single-collection paths
         self.collection = self.collections["company_knowledge_base_gemini_3072"]
+
+        # One-time migration & synchronization for ChromaDB chunks
+        try:
+            with self._get_sqlite_conn() as conn:
+                role_ids = [r['role_id'] for r in conn.execute("SELECT role_id FROM roles").fetchall()]
+            all_roles_str = ",".join(role_ids)
+            for col_name, col_obj in self.collections.items():
+                existing_chunks = col_obj.get(include=["metadatas"])
+                if existing_chunks and existing_chunks["ids"]:
+                    update_ids = []
+                    update_metas = []
+                    for idx, cid in enumerate(existing_chunks["ids"]):
+                        m = dict(existing_chunks["metadatas"][idx] or {})
+                        needs_update = False
+                        if "allowed_roles" not in m or not m["allowed_roles"]:
+                            # Legacy chunk: grant access to all roles
+                            m["allowed_roles"] = all_roles_str
+                            m["uploader_username"] = m.get("uploader_username", "Unknown")
+                            m["uploader_role"] = m.get("uploader_role", "Unknown")
+                            for r in role_ids:
+                                m[f"access_{r}"] = True
+                            needs_update = True
+                        else:
+                            # Tagged chunk: ensure access flags match ONLY allowed_roles
+                            allowed_list = [r.strip() for r in m["allowed_roles"].split(",") if r.strip()]
+                            for r in role_ids:
+                                flag = f"access_{r}"
+                                should_have = r in allowed_list
+                                if m.get(flag) != should_have:
+                                    m[flag] = should_have
+                                    needs_update = True
+
+                        if needs_update:
+                            update_ids.append(cid)
+                            update_metas.append(m)
+                    if update_ids:
+                        col_obj.update(ids=update_ids, metadatas=update_metas)
+                        logger.info("Synchronized %d chunks in ChromaDB collection '%s' with exact access tags.", len(update_ids), col_name)
+        except Exception as e:
+            logger.warning("ChromaDB chunk migration notice: %s", e)
 
     def check_duplicate(self, filename: str, content_hash: str, collection_name: str = "company_knowledge_base_gemini_3072") -> Tuple[bool, Optional[str]]:
         """
@@ -191,19 +283,32 @@ class DBService:
 
         return False, None
 
-    def create_document_record(self, doc_id: str, filename: str, content_hash: str, collection_name: str = "company_knowledge_base_gemini_3072") -> None:
-        """Create a new document ingestion record with 'processing' status."""
+    def create_document_record(
+        self,
+        doc_id: str,
+        filename: str,
+        content_hash: str,
+        collection_name: str = "company_knowledge_base_gemini_3072",
+        allowed_roles: Optional[List[str]] = None,
+        uploader_username: Optional[str] = "Unknown",
+        uploader_role: Optional[str] = "Unknown"
+    ) -> None:
+        """Create a new document ingestion record with 'processing' status and role access tags."""
         upload_date = datetime.utcnow().isoformat() + "Z"
+        roles_json = json.dumps(allowed_roles or [])
         with self._get_sqlite_conn() as conn:
             conn.execute(
                 """
-                INSERT INTO documents (id, filename, content_hash, upload_date, chunk_count, status, collection_name)
-                VALUES (?, ?, ?, ?, 0, 'processing', ?)
+                INSERT INTO documents (id, filename, content_hash, upload_date, chunk_count, status, collection_name, allowed_roles, uploader_username, uploader_role)
+                VALUES (?, ?, ?, ?, 0, 'processing', ?, ?, ?, ?)
                 """,
-                (doc_id, filename, content_hash, upload_date, collection_name)
+                (doc_id, filename, content_hash, upload_date, collection_name, roles_json, uploader_username or "Unknown", uploader_role or "Unknown")
             )
             conn.commit()
-        logger.info("Created metadata record for document %s (ID: %s, collection: %s)", filename, doc_id, collection_name)
+        logger.info(
+            "Created metadata record for document %s (ID: %s, collection: %s, uploader: %s, role: %s, allowed_roles: %s)",
+            filename, doc_id, collection_name, uploader_username, uploader_role, allowed_roles
+        )
 
     def update_document_status(self, doc_id: str, status: str, chunk_count: int) -> None:
         """Update the status and chunk count of a document."""
@@ -216,29 +321,50 @@ class DBService:
         logger.info("Updated status of document %s to %s (chunks: %d)", doc_id, status, chunk_count)
 
     def get_all_documents(self, collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Retrieve list of all documents metadata, optionally filtered by collection."""
+        """Retrieve list of all documents metadata with parsed allowed_roles and uploader info."""
         with self._get_sqlite_conn() as conn:
             if collection_name:
                 cursor = conn.execute(
-                    "SELECT id, filename, upload_date, chunk_count, status, collection_name FROM documents WHERE collection_name = ? ORDER BY upload_date DESC",
+                    "SELECT id, filename, upload_date, chunk_count, status, collection_name, allowed_roles, uploader_username, uploader_role FROM documents WHERE collection_name = ? ORDER BY upload_date DESC",
                     (collection_name,)
                 )
             else:
                 cursor = conn.execute(
-                    "SELECT id, filename, upload_date, chunk_count, status, collection_name FROM documents ORDER BY upload_date DESC"
+                    "SELECT id, filename, upload_date, chunk_count, status, collection_name, allowed_roles, uploader_username, uploader_role FROM documents ORDER BY upload_date DESC"
                 )
             rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+            results = []
+            for r in rows:
+                item = dict(r)
+                if item.get("allowed_roles"):
+                    try:
+                        item["allowed_roles"] = json.loads(item["allowed_roles"])
+                    except Exception:
+                        item["allowed_roles"] = [s.strip() for s in item["allowed_roles"].split(",") if s.strip()]
+                else:
+                    item["allowed_roles"] = []
+                results.append(item)
+            return results
 
     def get_document_by_id(self, doc_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a specific document's metadata."""
+        """Retrieve a specific document's metadata with parsed allowed_roles and uploader info."""
         with self._get_sqlite_conn() as conn:
             cursor = conn.execute(
-                "SELECT id, filename, upload_date, chunk_count, status, collection_name FROM documents WHERE id = ?",
+                "SELECT id, filename, upload_date, chunk_count, status, collection_name, allowed_roles, uploader_username, uploader_role FROM documents WHERE id = ?",
                 (doc_id,)
             )
             row = cursor.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            item = dict(row)
+            if item.get("allowed_roles"):
+                try:
+                    item["allowed_roles"] = json.loads(item["allowed_roles"])
+                except Exception:
+                    item["allowed_roles"] = [s.strip() for s in item["allowed_roles"].split(",") if s.strip()]
+            else:
+                item["allowed_roles"] = []
+            return item
 
     def delete_document(self, doc_id: str) -> bool:
         """
@@ -276,28 +402,42 @@ class DBService:
         content_hash: str,
         chunks: List[Dict[str, Any]],
         embeddings: List[List[float]],
-        collection_name: str = "company_knowledge_base_gemini_3072"
+        collection_name: str = "company_knowledge_base_gemini_3072",
+        allowed_roles: Optional[List[str]] = None,
+        uploader_username: Optional[str] = "Unknown",
+        uploader_role: Optional[str] = "Unknown"
     ) -> None:
         """
-        Save chunks and their embeddings into ChromaDB collection.
-        Each chunk is a dict containing 'text', 'page_number', 'chunk_index', and 'timestamp'.
+        Save chunks and their embeddings into ChromaDB collection with dual-stored access tags.
+        Each chunk receives:
+          1. allowed_roles comma-separated string for human readability.
+          2. Individual boolean flags (e.g. access_admin: True, access_tester: True) for fast, native filtering in Phase 15.
         """
         ids = []
         metadatas = []
         documents = []
+        roles_list = allowed_roles or []
+        roles_str = ",".join(roles_list)
 
         for idx, chunk in enumerate(chunks):
             chunk_id = f"{doc_id}_{idx}"
             ids.append(chunk_id)
             documents.append(chunk["text"])
-            metadatas.append({
+            meta = {
                 "document_id": doc_id,
                 "source_filename": filename,
                 "content_hash": content_hash,
                 "page_number": chunk["page_number"],
                 "chunk_index": chunk["chunk_index"],
-                "upload_timestamp": chunk["timestamp"]
-            })
+                "upload_timestamp": chunk["timestamp"],
+                "allowed_roles": roles_str,
+                "uploader_username": uploader_username or "Unknown",
+                "uploader_role": uploader_role or "Unknown"
+            }
+            # Set boolean filter flag for each permitted role
+            for r in roles_list:
+                meta[f"access_{r}"] = True
+            metadatas.append(meta)
 
         # Insert to ChromaDB
         target_collection = self.collections.get(collection_name, self.collection)
@@ -307,7 +447,7 @@ class DBService:
             metadatas=metadatas,
             documents=documents
         )
-        logger.info("Stored %d chunks in ChromaDB for document %s (ID: %s, collection: %s)", len(chunks), filename, doc_id, collection_name)
+        logger.info("Stored %d chunks in ChromaDB for document %s (ID: %s, collection: %s, roles: %s)", len(chunks), filename, doc_id, collection_name, roles_str)
 
     def save_chat_message(self, conversation_id: str, role: str, content: str) -> None:
         """Save a message turn (user or assistant) to SQLite database."""
@@ -616,5 +756,253 @@ class DBService:
             conn.commit()
             return cursor.rowcount > 0
 
+    # ==========================================
+    # Phase 11: Dynamic Role Management Methods
+    # ==========================================
+
+    def list_roles(self) -> List[Dict[str, Any]]:
+        """List all roles ordered by hierarchy_position ascending."""
+        with self._get_sqlite_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT role_id, role_name, hierarchy_position, can_upload, is_protected
+                FROM roles
+                ORDER BY hierarchy_position ASC
+                """
+            )
+            rows = cursor.fetchall()
+            return [
+                {
+                    "role_id": row["role_id"],
+                    "role_name": row["role_name"],
+                    "hierarchy_position": row["hierarchy_position"],
+                    "can_upload": bool(row["can_upload"]),
+                    "is_protected": bool(row["is_protected"])
+                }
+                for row in rows
+            ]
+
+    def get_role(self, role_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific role by role_id."""
+        with self._get_sqlite_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT role_id, role_name, hierarchy_position, can_upload, is_protected
+                FROM roles
+                WHERE role_id = ?
+                """,
+                (role_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "role_id": row["role_id"],
+                "role_name": row["role_name"],
+                "hierarchy_position": row["hierarchy_position"],
+                "can_upload": bool(row["can_upload"]),
+                "is_protected": bool(row["is_protected"])
+            }
+
+    def get_users_count_by_role(self, role_id: str, role_name: Optional[str] = None) -> int:
+        """Count how many users in the users table currently have this role assigned."""
+        with self._get_sqlite_conn() as conn:
+            if role_name:
+                cursor = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM users
+                    WHERE LOWER(role) = LOWER(?) OR LOWER(role) = LOWER(?)
+                    """,
+                    (role_id, role_name)
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM users
+                    WHERE LOWER(role) = LOWER(?)
+                    """,
+                    (role_id,)
+                )
+            return cursor.fetchone()[0]
+
+    def create_role(
+        self,
+        role_name: str,
+        insert_below_role_id: Optional[str] = None,
+        can_upload: bool = False,
+        role_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Creates a new role, calculates its hierarchy position, and shifts existing roles down by one.
+        """
+        clean_name = role_name.strip()
+        clean_id = (role_id.strip().lower() if role_id else clean_name.lower().replace(" ", "_").replace("-", "_"))
+
+        with self._get_sqlite_conn() as conn:
+            # Check for existing role_id
+            cursor = conn.execute("SELECT 1 FROM roles WHERE role_id = ?", (clean_id,))
+            if cursor.fetchone():
+                raise ValueError(f"Role with ID '{clean_id}' already exists.")
+
+            # Calculate target hierarchy position
+            if insert_below_role_id:
+                cursor = conn.execute("SELECT hierarchy_position FROM roles WHERE role_id = ?", (insert_below_role_id,))
+                ref_row = cursor.fetchone()
+                if not ref_row:
+                    raise ValueError(f"Reference role '{insert_below_role_id}' not found.")
+                target_pos = ref_row["hierarchy_position"] + 1
+            else:
+                cursor = conn.execute("SELECT MAX(hierarchy_position) FROM roles")
+                max_row = cursor.fetchone()[0]
+                target_pos = (max_row or 0) + 1
+
+            # Shift existing roles down
+            conn.execute(
+                "UPDATE roles SET hierarchy_position = hierarchy_position + 1 WHERE hierarchy_position >= ?",
+                (target_pos,)
+            )
+
+            # Insert new role
+            conn.execute(
+                """
+                INSERT INTO roles (role_id, role_name, hierarchy_position, can_upload, is_protected)
+                VALUES (?, ?, ?, ?, 0)
+                """,
+                (clean_id, clean_name, target_pos, 1 if can_upload else 0)
+            )
+            conn.commit()
+
+        created = self.get_role(clean_id)
+        if not created:
+            raise RuntimeError("Failed to retrieve newly created role.")
+        return created
+
+    def update_role(
+        self,
+        role_id: str,
+        role_name: Optional[str] = None,
+        can_upload: Optional[bool] = None,
+        insert_below_role_id: Optional[str] = None,
+        hierarchy_position: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Updates role name, upload permission, or repositions role in the hierarchy.
+        Protected roles cannot be repositioned.
+        """
+        current_role = self.get_role(role_id)
+        if not current_role:
+            raise ValueError(f"Role with ID '{role_id}' not found.")
+
+        # Block repositioning protected roles
+        if current_role["is_protected"] and (insert_below_role_id is not None or hierarchy_position is not None):
+            raise ValueError(f"Cannot reposition protected role '{current_role['role_name']}'.")
+
+        with self._get_sqlite_conn() as conn:
+            current_pos = current_role["hierarchy_position"]
+            target_pos = None
+
+            if insert_below_role_id:
+                if insert_below_role_id == role_id:
+                    raise ValueError("Cannot position a role below itself.")
+                ref_role = self.get_role(insert_below_role_id)
+                if not ref_role:
+                    raise ValueError(f"Reference role '{insert_below_role_id}' not found.")
+                ref_pos = ref_role["hierarchy_position"]
+                target_pos = ref_pos if current_pos < ref_pos else ref_pos + 1
+            elif hierarchy_position is not None:
+                cursor = conn.execute("SELECT MAX(hierarchy_position) FROM roles")
+                max_pos = cursor.fetchone()[0] or 1
+                target_pos = max(1, min(hierarchy_position, max_pos))
+
+            # Apply repositioning shift if target_pos differs from current_pos
+            if target_pos is not None and target_pos != current_pos:
+                if target_pos > current_pos:
+                    conn.execute(
+                        "UPDATE roles SET hierarchy_position = hierarchy_position - 1 WHERE hierarchy_position > ? AND hierarchy_position <= ?",
+                        (current_pos, target_pos)
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE roles SET hierarchy_position = hierarchy_position + 1 WHERE hierarchy_position >= ? AND hierarchy_position < ?",
+                        (target_pos, current_pos)
+                    )
+                conn.execute(
+                    "UPDATE roles SET hierarchy_position = ? WHERE role_id = ?",
+                    (target_pos, role_id)
+                )
+
+            # Update role_name if provided
+            if role_name is not None and role_name.strip():
+                conn.execute(
+                    "UPDATE roles SET role_name = ? WHERE role_id = ?",
+                    (role_name.strip(), role_id)
+                )
+
+            # Update can_upload if provided
+            if can_upload is not None:
+                conn.execute(
+                    "UPDATE roles SET can_upload = ? WHERE role_id = ?",
+                    (1 if can_upload else 0, role_id)
+                )
+
+            conn.commit()
+
+        updated = self.get_role(role_id)
+        if not updated:
+            raise RuntimeError("Failed to retrieve updated role.")
+        return updated
+
+    def delete_role(self, role_id: str) -> bool:
+        """
+        Deletes a role if not protected and not assigned to any user.
+        Shifts all roles below it up by one.
+        """
+        role = self.get_role(role_id)
+        if not role:
+            raise ValueError(f"Role with ID '{role_id}' not found.")
+
+        if role["is_protected"]:
+            raise ValueError(f"Cannot delete protected role '{role['role_name']}'.")
+
+        user_count = self.get_users_count_by_role(role_id, role["role_name"])
+        if user_count > 0:
+            raise ValueError(f"Cannot delete role '{role['role_name']}': {user_count} user(s) are currently assigned to this role.")
+
+        with self._get_sqlite_conn() as conn:
+            del_pos = role["hierarchy_position"]
+            conn.execute("DELETE FROM roles WHERE role_id = ?", (role_id,))
+            conn.execute(
+                "UPDATE roles SET hierarchy_position = hierarchy_position - 1 WHERE hierarchy_position > ?",
+                (del_pos,)
+            )
+            conn.commit()
+
+        return True
+
+    def get_roles_below(self, role_id: str) -> List[Dict[str, Any]]:
+        """
+        Retrieve all roles positioned strictly below the given role in the hierarchy
+        (i.e. hierarchy_position > current_role_position).
+        """
+        role = self.get_role(role_id)
+        if not role:
+            # Fallback lookup
+            roles = self.list_roles()
+            for r in roles:
+                if role_id.lower() in (r["role_id"].lower(), r["role_name"].lower()):
+                    role = r
+                    break
+        if not role:
+            return []
+        
+        my_pos = role["hierarchy_position"]
+        with self._get_sqlite_conn() as conn:
+            cursor = conn.execute(
+                "SELECT role_id, role_name, hierarchy_position, can_upload, is_protected FROM roles WHERE hierarchy_position > ? ORDER BY hierarchy_position ASC",
+                (my_pos,)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
 # Global database service instance
 db_service = DBService()
+

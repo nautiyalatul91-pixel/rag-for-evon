@@ -660,3 +660,152 @@ We have successfully implemented and verified the **Company Research Tab** insid
 * **Loading Indicators**: Added dedicated spinners and description labels for each backend request.
 * **Bespoke Exception Handling**: Displays clear error messages if quota limit or network failures occur.
 * **Logout Purges**: Added reset logic to `performLogout` to ensure that active company inputs and pipeline states are fully cleared when session tokens terminate.
+
+---
+
+## Phase 11: Dynamic Role Management
+
+We have successfully implemented and verified **Phase 11: Dynamic Role Management**. This feature shifts role definitions and permissions out of hardcoded logic and into a dynamic SQLite database table (`roles`), enabling administrators to manage roles (create, edit, delete, reorder) directly through backend API endpoints.
+
+### 1. Database Schema & Initial Seeding
+* **SQLite `roles` Table**:
+  - `role_id` (TEXT PRIMARY KEY)
+  - `role_name` (TEXT NOT NULL)
+  - `hierarchy_position` (INTEGER NOT NULL)
+  - `can_upload` (BOOLEAN NOT NULL DEFAULT 0)
+  - `is_protected` (BOOLEAN NOT NULL DEFAULT 0)
+* **Automatic Seeding**: Seeds the 5 default roles if the table is empty:
+  1. `admin` (Admin) — Position: 1, Can Upload: True, Protected: True
+  2. `co_founder` (Co-founder) — Position: 2, Can Upload: True, Protected: False
+  3. `programmer` (Programmer) — Position: 3, Can Upload: False, Protected: False
+  4. `tester` (Tester) — Position: 4, Can Upload: False, Protected: False
+  5. `employee` (Employee) — Position: 5, Can Upload: False, Protected: False
+
+### 2. Admin Management Endpoints
+* **`GET /admin/roles`**: Lists all roles ordered by `hierarchy_position ASC`. Protected by `require_admin`.
+* **`POST /admin/roles`**: Creates a new role with name, optional `insert_below_role_id`, and `can_upload`. Automatically calculates the target position and shifts existing lower roles down by 1.
+* **`PATCH /admin/roles/{role_id}`**: Edits role name, upload permission, or repositions role in hierarchy (shifts intermediate positions accordingly). Blocks repositioning protected roles (`admin`).
+* **`DELETE /admin/roles/{role_id}`**:
+  - Blocks deleting protected roles (`admin`).
+  - Checks `users` table and blocks deletion if any users are currently assigned to the role, returning a clear error specifying the count.
+  - On successful deletion, shifts all lower roles up by 1 to maintain a continuous hierarchy.
+
+### 3. Verification & Zero Regressions
+* Executed [test_roles.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_roles.py) covering all 8 test cases (seeding, insertion shifting, protected role deletion guard, assigned user deletion guard, repositioning, deletion shift up, authentication controls, and smoke regression).
+* All tests passed with 100% success rate.
+
+---
+
+## Phase 12: Registration Wiring
+
+We have successfully implemented and verified **Phase 12: Registration Wiring**. This feature wires user registration directly into the dynamic SQLite `roles` table, replacing hardcoded role constraints with database-driven validation and providing a public endpoint for registration interfaces.
+
+### 1. Dynamic Validation on Registration (`POST /auth/register`)
+* Removed hardcoded `admin`/`employee` validation from [app/models/user.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/models/user.py).
+* Validates incoming registration requests against currently active roles in SQLite via `db_service.list_roles()`.
+* Accepts role by `role_id` or `role_name` (case-insensitive) and stores the canonical `role_id` in the `users` table.
+* Rejects unknown or invalid roles with `400 Bad Request` specifying the allowed roles.
+
+### 2. Public Available Roles Endpoint (`GET /auth/available-roles`)
+* Added public endpoint in [app/routes/auth.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/routes/auth.py#L10-L24) returning `[{"role_id": "...", "role_name": "..."}]` ordered by hierarchy.
+* Allows front-end registration forms to query available roles without requiring authentication tokens or administrative privileges.
+
+### 3. Frontend Dynamic Dropdown (`static/index.html`)
+* Added `loadAvailableRoles()` JavaScript function in [static/index.html](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/static/index.html) to populate the `#register-role` dropdown dynamically on page load and whenever the registration form is toggled.
+* When new roles are created via Phase 11 role management, they appear automatically in the registration dropdown without requiring code changes.
+
+### 4. Verification & Test Results
+* Executed [test_registration_wiring.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_registration_wiring.py) verifying public endpoint access, default role registration, dynamic role addition + registration, 400 rejection on invalid role, and user-assigned role deletion safety.
+* Re-ran [test_roles.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_roles.py) confirming complete end-to-end compatibility.
+
+---
+
+## Phase 13: Upload Permission Wiring
+
+We have completed and verified **Phase 13: Upload Permission Wiring**. This feature replaces hardcoded `require_admin` authorization on document ingestion with a dynamic `require_upload_permission` dependency driven by each role's `can_upload` flag in the SQLite `roles` table.
+
+### 1. Dynamic Upload Auth Dependency (`require_upload_permission`)
+* Added `require_upload_permission` in [app/services/auth_service.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/services/auth_service.py#L117-L140).
+* Looks up the user's role in the `roles` table in real time via `db_service.get_role(role_id)`.
+* Enforces `can_upload`:
+  * If `can_upload` is `False`, logs warning and audit messages (`Upload permission denied`), raising `403 Forbidden` (`Access denied. Role '{role_name}' does not have upload permissions.`).
+  * If `can_upload` is `True`, returns the authenticated user payload.
+* `require_admin` remains untouched and continues to guard administrative actions (e.g. document deletion and role management).
+
+### 2. Upload Endpoint Authorization
+* In [app/routes/admin.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/routes/admin.py):
+  * `POST /admin/upload`: Protected by `Depends(require_upload_permission)`.
+  * `GET /admin/documents`: Protected by `Depends(require_upload_permission)` so upload-authorized non-admins (e.g. `co_founder`) can view uploaded documents.
+  * `DELETE /admin/documents/{document_id}`: Strictly retained as `Depends(require_admin)`.
+
+### 3. User Metadata & Session Enhancements
+* In [app/models/user.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/models/user.py) and [app/routes/auth.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/routes/auth.py):
+  * Updated `POST /auth/login` and `TokenResponse` to return `role`, `can_upload`, and `is_admin`.
+  * Added `GET /auth/me` endpoint returning live user permissions.
+
+### 4. Front-end Dynamic UI Adjustments (`static/index.html`)
+* In [static/index.html](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/static/index.html):
+  * Displays the Knowledge Index / Upload tab if `userProfile.can_upload || userProfile.is_admin`.
+  * Hides document deletion action buttons for non-admin uploaders.
+
+### 5. Verification & Test Results
+* Created and executed [test_upload_permissions.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_upload_permissions.py) (6 test cases passing):
+  1. `test_01_admin_can_upload`: Admin uploads documents successfully (`200 OK`).
+  2. `test_02_cofounder_can_upload`: Co-founder (`can_upload=True` default) uploads successfully (`200 OK`).
+  3. `test_03_blocked_roles_rejected_403`: Programmer, Tester, and Employee are blocked on upload (`403 Forbidden`).
+  4. `test_04_dynamic_permission_toggle`: Dynamically elevating Tester via `PATCH /admin/roles/tester` with `can_upload=True` immediately allows upload; revoking it immediately restores `403 Forbidden`.
+  5. `test_05_document_deletion_remains_admin_only`: Co-founder receives `403 Forbidden` attempting document deletion; Admin receives `200 OK`.
+  6. `test_06_auth_me_and_login_metadata`: Verified `POST /auth/login` and `GET /auth/me` return accurate dynamic permissions.
+* Re-ran [test_registration_wiring.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_registration_wiring.py) and [test_roles.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_roles.py) with all 13 regression tests passing.
+
+---
+
+## Phase 14: Document Access Tagging
+
+We have successfully completed and verified **Phase 14: Document Access Tagging**. This feature implements hierarchy-aware access calculations at upload time, tags document records and vector chunks with dual-storage permissions, provides downline role selection, renders accountability information, and migrates pre-existing documents.
+
+### 1. Dual-Storage Architecture
+* **ChromaDB Chunk Metadata ($O(1)$ Native Filtering)**:
+  * For each chunk ingested into ChromaDB, individual boolean flags (`f"access_{role_id}": True`) are stamped for every granted role.
+  * In Phase 15, retrieval filtering is executed natively and strictly at the index level (`where={"access_" + user_role: True}`) without degraded recall or in-memory filtering.
+  * Stamped `allowed_roles` comma-separated string for inspection and debugging.
+* **SQLite Metadata Ingestion**:
+  * Added `allowed_roles` (JSON stringified array), `uploader_username`, and `uploader_role` columns to the `documents` table via automatic PRAGMA checks in `_init_sqlite()`.
+  * `create_document_record`, `get_all_documents`, and `get_document_by_id` now store and return structured role lists and uploader metadata.
+
+### 2. Access List Calculation & Security Validation (`POST /admin/upload`)
+* When an authorized user uploads a document:
+  1. **Automatic Access**: Automatically grants access to all roles positioned at or above the uploader in the hierarchy (`hierarchy_position <= uploader_pos`), including the uploader and `admin`.
+  2. **Downline Selection**: The uploader can specify optional downline roles via `allowed_roles`.
+  3. **Security Checkpoint**: Strictly validates that all manually specified roles have `hierarchy_position > uploader_pos`. Attempts to select upline roles or unknown roles are rejected with `400 Bad Request`.
+  4. **Detailed Logging**: Logs audit trails and system logs distinguishing auto-granted roles vs manually selected downline roles.
+
+### 3. Downline Roles Discovery Endpoint (`GET /admin/roles/below-me`)
+* Added `GET /admin/roles/below-me` in [app/routes/admin.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/app/routes/admin.py) protected by `require_upload_permission`.
+* Returns the subset of roles strictly below the current user in hierarchy position, allowing client UIs to render selectable access options.
+
+### 4. Front-end Enhancements (`static/index.html`)
+* **Upload Card**:
+  * Displays a dynamic `🔒 Automatic Access` banner stating that roles at or above the user's position automatically receive read access.
+  * Queries `GET /admin/roles/below-me` and dynamically renders checkboxes for downline roles.
+  * Submits checked downline roles with the upload payload.
+* **Knowledge Index Table**:
+  * Added **Uploader** column showing accountability info (e.g. `Rajesh (Co-founder)` or `Unknown`).
+  * Added **Access Roles** column displaying styled pill badges for each role granted access.
+
+### 5. Backward Compatibility & Migration
+* **SQLite Migration**: Pre-existing documents uploaded prior to Phase 14 have `allowed_roles` initialized to all active roles and uploader set to `Unknown`.
+* **ChromaDB Migration**: Pre-existing vector chunks missing access flags are updated with default flags (`access_<role>: True` for all active roles).
+
+### 6. Verification & Test Results
+* Created and executed [test_document_access_tagging.py](file:///c:/Users/Dell/Desktop/RAG%20for%20evon/test_document_access_tagging.py) (5/5 tests passing):
+  1. `test_01_get_roles_below_me`: Verified hierarchy filtering for Admin and Co-founder.
+  2. `test_02_cofounder_upload_with_downline_selection`: Verified Co-founder upload auto-grants to Admin + Co-founder and includes selected downline role (`tester`). Verified SQLite JSON storage and ChromaDB boolean flags (`access_admin: True`, `access_co_founder: True`, `access_tester: True`).
+  3. `test_03_admin_upload_no_downline_selection`: Verified Admin upload without downline selection creates document with `[admin]`.
+  4. `test_04_security_rejection_upline_role`: Verified strict `400 Bad Request` when attempting to select upline or unknown roles.
+  5. `test_05_preexisting_documents_migration_and_accountability`: Verified pre-existing documents display with migrated roles and uploader attribution in `GET /admin/documents`.
+* Executed full regression suite (`test_roles.py`, `test_registration_wiring.py`, `test_upload_permissions.py`) with all 19 tests passing.
+
+
+
+

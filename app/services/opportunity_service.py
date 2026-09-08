@@ -2,14 +2,14 @@ import os
 import json
 from typing import Dict, Any, List
 import google.generativeai as genai
-from app.config import GEMINI_API_KEY, logger
+from app.config import GEMINI_API_KEY, GEMINI_MODEL, logger
 from app.services.embedding_service import embedding_service
 from app.services.db_service import db_service
 
 class OpportunityService:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
-        self.model_name = "models/gemini-3.6-flash"
+        self.model_name = f"models/{GEMINI_MODEL}" if not GEMINI_MODEL.startswith("models/") else GEMINI_MODEL
         
         # Configure Gemini
         if self.api_key and self.api_key != "your_gemini_api_key_here" and "YOUR_REAL_API_KEY_HERE" not in self.api_key:

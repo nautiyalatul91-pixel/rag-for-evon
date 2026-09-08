@@ -1140,8 +1140,7 @@
                 <div class="form-group">
                     <label class="form-label" for="register-role">System Role</label>
                     <select class="form-select" id="register-role">
-                        <option value="employee">Employee (Chat Access)</option>
-                        <option value="admin">Administrator (Upload & Delete Access)</option>
+                        <option value="" disabled selected>Loading available roles...</option>
                     </select>
                 </div>
                 <button type="submit" class="btn">
@@ -1275,6 +1274,23 @@
                                     <p>PDF, DOCX, XLSX, TXT up to 20MB</p>
                                     <input type="file" id="file-input" multiple accept=".pdf,.docx,.xlsx,.txt">
                                 </div>
+
+                                <!-- Phase 14: Document Access Control Selection -->
+                                <div id="upload-access-control" style="margin-top: 15px; padding: 12px; background: rgba(13, 20, 30, 0.5); border: 1px solid var(--card-border); border-radius: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #93c5fd; margin-bottom: 6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                        <span>Document Access Control</span>
+                                    </div>
+                                    <div id="auto-access-note" style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4; padding: 6px 10px; background: rgba(255, 255, 255, 0.03); border-radius: 4px; border-left: 2px solid #3b82f6;">
+                                        Loading access hierarchy...
+                                    </div>
+                                    <div id="downline-roles-section">
+                                        <label style="font-size: 11px; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 6px;">Grant additional access to downline roles:</label>
+                                        <div id="downline-roles-checklist" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            <!-- Checkboxes populated dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
                                 
                                 <div id="upload-results-container" class="upload-results-list">
                                     <!-- Upload queues appear here -->
@@ -1302,7 +1318,9 @@
                                             <tr>
                                                 <th>Filename</th>
                                                 <th>Collection</th>
+                                                <th>Uploader</th>
                                                 <th>Uploaded At</th>
+                                                <th>Access Roles</th>
                                                 <th>Chunks</th>
                                                 <th>Status</th>
                                                 <th style="width: 60px;">Actions</th>
@@ -1310,7 +1328,7 @@
                                         </thead>
                                         <tbody id="docs-table-body">
                                             <tr>
-                                                <td colspan="6" class="empty-table-state">Loading document index...</td>
+                                                <td colspan="8" class="empty-table-state">Loading document index...</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -2045,6 +2063,25 @@
         navChat.addEventListener('click', () => switchTab('chat'));
         navAdmin.addEventListener('click', () => switchTab('admin'));
 
+        // --- Available Roles Dynamic Loader ---
+        async function loadAvailableRoles() {
+            try {
+                const roles = await apiFetch('/auth/available-roles');
+                if (Array.isArray(roles) && roles.length > 0) {
+                    const currentVal = registerRoleSelect.value;
+                    registerRoleSelect.innerHTML = roles.map(r => 
+                        `<option value="${r.role_id}">${r.role_name}</option>`
+                    ).join('');
+                    if (currentVal && roles.some(r => r.role_id === currentVal)) {
+                        registerRoleSelect.value = currentVal;
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load available roles:", err);
+            }
+        }
+        loadAvailableRoles();
+
         // --- Toggle Login / Register ---
         toggleAuthViewBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -2056,6 +2093,7 @@
                 toggleMessage.innerText = 'Already have an account?';
                 toggleAuthViewBtn.innerText = 'Sign In';
                 isLoginViewActive = false;
+                loadAvailableRoles();
             } else {
                 // Switch to login view
                 loginForm.style.display = 'block';
@@ -2087,7 +2125,9 @@
                 const decodedPayload = JSON.parse(atob(payloadBase64));
                 userProfile = {
                     username: decodedPayload.username,
-                    role: decodedPayload.role
+                    role: response.role || decodedPayload.role,
+                    can_upload: response.can_upload !== undefined ? !!response.can_upload : (decodedPayload.role === 'admin'),
+                    is_admin: response.is_admin !== undefined ? !!response.is_admin : (decodedPayload.role === 'admin')
                 };
 
                 // Clear login inputs
@@ -2118,7 +2158,6 @@
                 // Clear register inputs and toggle back to login
                 registerUsernameInput.value = '';
                 registerPasswordInput.value = '';
-                registerRoleSelect.value = 'employee';
                 toggleAuthViewBtn.click();
             } catch (err) {
                 showNotification("Registration Failed", err.message || "Unable to register account.", "danger");
@@ -2138,18 +2177,18 @@
             userDisplayName.innerText = userProfile.username;
             userAvatar.innerText = userProfile.username.charAt(0).toUpperCase();
             userDisplayRole.innerText = userProfile.role;
-            if (userProfile.role === 'admin') {
+            if (userProfile.is_admin) {
                 userDisplayRole.className = 'user-role-badge admin';
-                navAdmin.style.display = 'flex';
             } else {
                 userDisplayRole.className = 'user-role-badge';
-                navAdmin.style.display = 'none';
             }
 
-            // Redirect appropriately
-            if (userProfile.role === 'admin') {
+            if (userProfile.can_upload || userProfile.is_admin) {
+                navAdmin.style.display = 'flex';
+                loadUploadAccessControl();
                 switchTab('admin');
             } else {
+                navAdmin.style.display = 'none';
                 switchTab('chat');
             }
             
@@ -2304,7 +2343,7 @@
                 if (response.length === 0) {
                     docsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="empty-table-state">No documents ingested. Click upload to index policy sheets.</td>
+                            <td colspan="8" class="empty-table-state">No documents ingested. Click upload to index policy sheets.</td>
                         </tr>
                     `;
                     return;
@@ -2315,6 +2354,17 @@
                     const uploadDate = new Date(doc.upload_date).toLocaleString();
                     const collectionDisplay = doc.collection_name === "evon_capabilities" ? "EVON Capabilities" : "Company Policies";
                     
+                    const uploaderName = doc.uploader_username || 'Unknown';
+                    const uploaderRole = doc.uploader_role ? (doc.uploader_role.charAt(0).toUpperCase() + doc.uploader_role.slice(1)) : '';
+                    const uploaderDisplay = uploaderRole && uploaderRole !== 'Unknown' ? `${uploaderName} (${uploaderRole})` : uploaderName;
+
+                    let rolesBadgesHtml = '<span style="color: var(--text-muted); font-size: 11px;">All Roles</span>';
+                    if (doc.allowed_roles && doc.allowed_roles.length > 0) {
+                        rolesBadgesHtml = doc.allowed_roles.map(r => 
+                            `<span class="doc-badge" style="background: rgba(59, 130, 246, 0.1); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.2); font-size: 10px; margin-right: 3px; padding: 1px 5px;">${r}</span>`
+                        ).join('');
+                    }
+
                     row.innerHTML = `
                         <td>
                             <div class="doc-name">
@@ -2323,30 +2373,37 @@
                             </div>
                         </td>
                         <td><span class="doc-badge" style="background: rgba(147, 197, 253, 0.1); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.2);">${collectionDisplay}</span></td>
+                        <td><span style="font-size: 12px; color: #cbd5e1;">${uploaderDisplay}</span></td>
                         <td><span class="doc-date">${uploadDate}</span></td>
+                        <td><div style="display: flex; flex-wrap: wrap; gap: 2px;">${rolesBadgesHtml}</div></td>
                         <td>${doc.chunk_count}</td>
                         <td><span class="doc-badge">${doc.status}</span></td>
                         <td>
+                            ${userProfile && userProfile.is_admin ? `
                             <button class="doc-delete-btn" data-id="${doc.id}" data-name="${doc.filename}" title="Delete document">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             </button>
+                            ` : `<span style="color: var(--text-muted); font-size: 11px;">Admin Only</span>`}
                         </td>
                     `;
 
-                    // Bind delete listener
-                    row.querySelector('.doc-delete-btn').addEventListener('click', (e) => {
-                        const target = e.currentTarget;
-                        docToDeleteId = target.getAttribute('data-id');
-                        docToDeleteName = target.getAttribute('data-name');
-                        showConfirmDialog();
-                    });
+                    // Bind delete listener if present
+                    const delBtn = row.querySelector('.doc-delete-btn');
+                    if (delBtn) {
+                        delBtn.addEventListener('click', (e) => {
+                            const target = e.currentTarget;
+                            docToDeleteId = target.getAttribute('data-id');
+                            docToDeleteName = target.getAttribute('data-name');
+                            showConfirmDialog();
+                        });
+                    }
 
                     docsTableBody.appendChild(row);
                 });
             } catch (err) {
                 docsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="empty-table-state" style="color: var(--danger);">Failed to retrieve index: ${err.message}</td>
+                        <td colspan="8" class="empty-table-state" style="color: var(--danger);">Failed to retrieve index: ${err.message}</td>
                     </tr>
                 `;
             }
@@ -2421,6 +2478,42 @@
             }
         });
 
+        async function loadUploadAccessControl() {
+            const autoNote = document.getElementById('auto-access-note');
+            const checklist = document.getElementById('downline-roles-checklist');
+            if (!autoNote || !checklist) return;
+
+            if (!userProfile) {
+                autoNote.innerText = "Please log in to view access permissions.";
+                checklist.innerHTML = '';
+                return;
+            }
+
+            try {
+                const rolesBelow = await apiFetch('/admin/roles/below-me');
+                const myRoleDisplay = userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1);
+                autoNote.innerHTML = `<strong>🔒 Automatic Access:</strong> All roles positioned at or above you in the hierarchy automatically receive full read access (including <strong>${myRoleDisplay}</strong> and <strong>Admin</strong>).`;
+
+                checklist.innerHTML = '';
+                if (rolesBelow && rolesBelow.length > 0) {
+                    rolesBelow.forEach(role => {
+                        const label = document.createElement('label');
+                        label.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: rgba(255, 255, 255, 0.05); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; color: white;';
+                        label.innerHTML = `
+                            <input type="checkbox" value="${role.role_id}" style="accent-color: var(--primary-color); cursor: pointer;">
+                            <span>${role.role_name}</span>
+                        `;
+                        checklist.appendChild(label);
+                    });
+                } else {
+                    checklist.innerHTML = `<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">No downline roles exist below your position.</span>`;
+                }
+            } catch (e) {
+                autoNote.innerText = "Automatic access: Roles above you + your role.";
+                checklist.innerHTML = `<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Unable to load downline roles: ${e.message}</span>`;
+            }
+        }
+
         async function handleFilesSelected(files) {
             if (isUploading) return;
             isUploading = true;
@@ -2431,6 +2524,15 @@
             const fileList = Array.from(files);
             const formData = new FormData();
             formData.append('collection', adminCollectionSelect.value);
+
+            // Phase 14: Collect selected downline roles
+            const selectedRoles = [];
+            document.querySelectorAll('#downline-roles-checklist input[type="checkbox"]:checked').forEach(cb => {
+                selectedRoles.push(cb.value);
+            });
+            if (selectedRoles.length > 0) {
+                formData.append('allowed_roles', JSON.stringify(selectedRoles));
+            }
             
             fileList.forEach(file => {
                 formData.append('files', file);
@@ -2541,6 +2643,7 @@
                 adminSubtabDocs.style.color = 'white';
                 adminViewDocs.style.display = 'block';
                 adminHeaderSubtitle.innerText = 'Manage documents stored in the company knowledge base index.';
+                loadUploadAccessControl();
                 loadDocumentsTable();
             } else if (subtab === 'research') {
                 if (adminSubtabResearch) {

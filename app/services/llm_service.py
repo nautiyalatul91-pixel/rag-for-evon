@@ -1,13 +1,30 @@
 import tiktoken
 from typing import List, Dict, Any, Tuple, Optional
 import google.generativeai as genai
-from app.config import GEMINI_API_KEY, MOCK_EMBEDDINGS, logger
+from app.config import GEMINI_API_KEY, GEMINI_MODEL, MOCK_EMBEDDINGS, logger
 from app.services.db_service import db_service
 
 class LLMService:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
-        self.model_name = "gemini-3.6-flash"
+        self.model_name = GEMINI_MODEL
+        self.fallback_models = [
+            GEMINI_MODEL,
+            "gemini-3.5-flash",
+            "gemini-3.7-flash",
+            "gemini-flash-latest",
+            "gemini-3.8-flash",
+            "gemini-3.6-flash"
+        ]
+        # Deduplicate while preserving order
+        seen = set()
+        deduped = []
+        for m in self.fallback_models:
+            clean = m.replace("models/", "")
+            if clean not in seen:
+                seen.add(clean)
+                deduped.append(clean)
+        self.fallback_models = deduped
         self.temperature = 0.2
         self.max_prompt_tokens = 6000  # Safety cap for prompt size
         
@@ -150,35 +167,55 @@ class LLMService:
         # Add current turn
         contents.append({"role": "user", "parts": [user_message_content]})
 
-        max_retries = 5
-        delay = 1.0
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info("Calling Gemini API (gemini-2.5-flash)...")
-                model = genai.GenerativeModel(
-                    model_name=self.model_name,
-                    system_instruction=system_prompt,
-                    generation_config={"temperature": self.temperature}
-                )
-                response = model.generate_content(contents, request_options={"timeout": 30.0})
-                answer = response.text
-                return answer, is_mock
-                
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    logger.error("Gemini API rate limit or connection error exceeded max retries. Failing.")
-                    raise e
-                
-                # Exponential backoff with jitter
-                import random
-                import time
-                sleep_time = delay * (2 ** attempt) + random.uniform(0.0, 1.0)
-                logger.warning(
-                    "Gemini API issue. Retrying in %.2fs (Attempt %d/%d)... Error: %s",
-                    sleep_time, attempt + 1, max_retries, e
-                )
-                time.sleep(sleep_time)
+        last_error = None
+        for candidate_model in self.fallback_models:
+            max_retries = 3
+            delay = 1.0
+            quota_exhausted = False
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info("Calling Gemini API (%s)...", candidate_model)
+                    model = genai.GenerativeModel(
+                        model_name=candidate_model,
+                        system_instruction=system_prompt,
+                        generation_config={"temperature": self.temperature}
+                    )
+                    response = model.generate_content(contents, request_options={"timeout": 30.0})
+                    answer = response.text
+                    return answer, is_mock
+                    
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    # If daily quota is exceeded (429), fall back immediately to next candidate model in pool
+                    if "429" in err_str and ("quota" in err_str.lower() or "free_tier" in err_str.lower()):
+                        logger.warning(
+                            "Gemini model '%s' quota exceeded (429). Falling back to next available model in pool...",
+                            candidate_model
+                        )
+                        quota_exhausted = True
+                        break
+                    
+                    if attempt == max_retries - 1:
+                        logger.warning("Model '%s' failed after %d retries: %s", candidate_model, max_retries, e)
+                        break
+                    
+                    import random
+                    import time
+                    sleep_time = delay * (2 ** attempt) + random.uniform(0.0, 1.0)
+                    logger.warning(
+                        "Gemini API issue on '%s'. Retrying in %.2fs (Attempt %d/%d)... Error: %s",
+                        candidate_model, sleep_time, attempt + 1, max_retries, e
+                    )
+                    time.sleep(sleep_time)
+
+            if not quota_exhausted and last_error and not ("429" in str(last_error)):
+                # If error is not quota related (e.g. malformed prompt), don't unnecessarily cycle all models
+                break
+
+        logger.error("All candidate Gemini models failed or exceeded quota.")
+        raise last_error
 
 # Global LLM service instance
 llm_service = LLMService()

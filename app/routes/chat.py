@@ -45,7 +45,9 @@ def query_chat(
         relevant_chunks, all_distances = retrieval_service.retrieve_relevant_chunks(
             question=question, 
             k=request.k,
-            collection_name=collection_name
+            collection_name=collection_name,
+            user_role=current_user.get("role"),
+            username=current_user.get("username")
         )
 
         # 2. No-answer Handling

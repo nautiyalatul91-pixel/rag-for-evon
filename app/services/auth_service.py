@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 
-from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, logger
+from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, logger, audit_logger
 from app.services.db_service import db_service
 
 # Password hashing configuration
@@ -54,7 +54,6 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     Raises 401 Unauthorized if the token is missing, expired, or invalid.
     """
     if not credentials or not credentials.credentials:
-        from app.config import audit_logger
         audit_logger.info("User: Unknown | Role: Unknown | Endpoint: Protected | Success: False | Details: Missing Bearer Token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,7 +68,6 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     
     payload = decode_access_token(token)
     if not payload:
-        from app.config import audit_logger
         audit_logger.info("User: Unknown | Role: Unknown | Endpoint: Protected | Success: False | Details: Invalid or expired token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,7 +77,6 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     username = payload.get("username")
     user = db_service.get_user_by_username(username)
     if not user:
-        from app.config import audit_logger
         audit_logger.info("User: Unknown | Role: Unknown | Endpoint: Protected | Success: False | Details: Username '%s' not found", username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,7 +95,6 @@ def require_role(allowed_roles: List[str]):
     """FastAPI dependency factory to enforce role-based access control (RBAC)."""
     def role_checker(current_user: dict = Depends(get_current_user)) -> dict:
         if current_user["role"] not in allowed_roles:
-            from app.config import audit_logger
             audit_logger.info(
                 "User: %s | Role: %s | Endpoint: Protected | Success: False | Details: Permission denied. Required: %s",
                 current_user["username"], current_user["role"], str(allowed_roles)
@@ -113,3 +109,28 @@ def require_role(allowed_roles: List[str]):
 # Reusable role dependencies
 require_admin = require_role(["admin"])
 require_employee_or_admin = require_role(["admin", "employee"])
+
+async def require_upload_permission(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    FastAPI dependency to verify if the user's assigned role has can_upload permission.
+    Queries the roles table dynamically to ensure real-time permission enforcement.
+    """
+    role_id = current_user.get("role", "")
+    role_info = db_service.get_role(role_id)
+
+    if not role_info or not role_info.get("can_upload"):
+        role_display = role_info["role_name"] if role_info else role_id
+        logger.warning(
+            "Upload permission denied for user '%s' (role: '%s'). Role lacks can_upload permission.",
+            current_user["username"], role_display
+        )
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: Upload | Success: False | Details: Upload permission denied. Role lacks upload privileges.",
+            current_user["username"], role_display
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied. Role '{role_display}' does not have upload permissions."
+        )
+    return current_user
+

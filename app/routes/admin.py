@@ -1,4 +1,5 @@
 import os
+import json
 import uuid
 import shutil
 import tempfile
@@ -8,11 +9,12 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends,
 
 from app.config import logger, audit_logger
 from app.models.responses import UploadResponse, UploadStatus, DocumentMetadata, DeleteResponse
+from app.models.role import RoleResponse, RoleCreateRequest, RoleUpdateRequest, RoleDeleteResponse
 from app.services.db_service import db_service
 from app.services.parser_service import parser_service
 from app.services.chunking_service import chunking_service
 from app.services.embedding_service import embedding_service
-from app.services.auth_service import require_admin
+from app.services.auth_service import require_admin, require_upload_permission
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -29,12 +31,16 @@ def calculate_sha256(file_obj) -> str:
 def upload_documents(
     files: List[UploadFile] = File(...),
     collection: str = Form("company_knowledge_base_gemini_3072"),
-    current_user: dict = Depends(require_admin)
+    allowed_roles: Optional[str] = Form(None),
+    current_user: dict = Depends(require_upload_permission)
 ):
     """
     Ingests one or more documents (PDF, DOCX, XLSX, TXT) synchronously.
     Validates file extension and size (< 20MB) early.
-    Prevents duplicate ingestion.
+    Enforces role hierarchy access tagging:
+      - Automatically grants access to all roles positioned at or above the uploader in the hierarchy (including uploader).
+      - Allows selection of roles strictly below the uploader.
+      - Strictly rejects requests attempting to manually select roles above or outside downline.
     """
     username = current_user["username"]
     role = current_user["role"]
@@ -50,7 +56,7 @@ def upload_documents(
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 
     try:
-        # 1. Early Validation Phase
+        # 1. Early Validation Phase (Extensions and Sizes)
         for file in files:
             filename = file.filename or ""
             ext = filename.split(".")[-1].lower() if "." in filename else ""
@@ -73,10 +79,67 @@ def upload_documents(
                     detail=f"File '{filename}' exceeds the maximum allowed size of 20MB (Size: {file_size / (1024 * 1024):.2f}MB)."
                 )
 
+        # 2. Hierarchy Access List Calculation & Security Validation
+        all_roles = db_service.list_roles()
+        current_role_record = db_service.get_role(role)
+        if not current_role_record:
+            for r in all_roles:
+                if role.lower() in (r["role_id"].lower(), r["role_name"].lower()):
+                    current_role_record = r
+                    break
+        if not current_role_record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploader role not found in roles hierarchy."
+            )
+
+        uploader_pos = current_role_record["hierarchy_position"]
+        uploader_canonical_role = current_role_record["role_id"]
+
+        # Automatic access: All roles at or above the uploader
+        auto_roles = [r["role_id"] for r in all_roles if r["hierarchy_position"] <= uploader_pos]
+
+        # Valid selectable downline roles: strictly higher hierarchy_position numbers
+        downline_roles_map = {r["role_id"]: r for r in all_roles if r["hierarchy_position"] > uploader_pos}
+
+        selected_roles = []
+        if allowed_roles:
+            raw_str = allowed_roles.strip()
+            if raw_str.startswith("[") and raw_str.endswith("]"):
+                try:
+                    parsed = json.loads(raw_str)
+                    selected_roles = [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    selected_roles = [s.strip() for s in raw_str.strip("[]").split(",") if s.strip()]
+            else:
+                selected_roles = [s.strip() for s in raw_str.split(",") if s.strip()]
+
+            for s_role in selected_roles:
+                if s_role not in downline_roles_map:
+                    logger.warning(
+                        "Upload security violation: User '%s' (role: '%s', pos: %d) attempted to grant access to unauthorized role '%s'.",
+                        username, role, uploader_pos, s_role
+                    )
+                    audit_logger.info(
+                        "User: %s | Role: %s | Endpoint: POST /admin/upload | Success: False | Details: Attempted to grant access to unauthorized role '%s'",
+                        username, role, s_role
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid access assignment: Role '{s_role}' cannot be manually selected. Only roles strictly below you in the hierarchy ({list(downline_roles_map.keys())}) can be selected."
+                    )
+
+        # Final computed access list
+        final_access_list = list(dict.fromkeys(auto_roles + selected_roles))
+        logger.info(
+            "Upload access list calculated for user '%s' (role: '%s'): Automatic=%s | Selected downline=%s | Final access list=%s",
+            username, uploader_canonical_role, auto_roles, selected_roles, final_access_list
+        )
+
         uploaded_statuses = []
         failed_statuses = []
 
-        # 2. Processing Phase (Synchronous)
+        # 3. Processing Phase (Synchronous)
         for file in files:
             filename = file.filename or ""
             logger.info("Processing file: %s", filename)
@@ -105,12 +168,23 @@ def upload_documents(
                     failed_statuses.append(UploadStatus(
                         filename=filename,
                         status="failure",
+                        allowed_roles=final_access_list,
+                        uploader_username=username,
+                        uploader_role=uploader_canonical_role,
                         error=duplicate_reason
                     ))
                     continue
 
-                # Create document record in SQLite (status: processing)
-                db_service.create_document_record(doc_id, filename, content_hash, collection_name=collection)
+                # Create document record in SQLite (status: processing) with access tags
+                db_service.create_document_record(
+                    doc_id=doc_id,
+                    filename=filename,
+                    content_hash=content_hash,
+                    collection_name=collection,
+                    allowed_roles=final_access_list,
+                    uploader_username=username,
+                    uploader_role=uploader_canonical_role
+                )
 
                 # A. Parse the document
                 pages = parser_service.parse_file(temp_path, filename)
@@ -136,8 +210,18 @@ def upload_documents(
                         f"Mismatch between number of chunks ({len(chunks)}) and embeddings generated ({len(all_embeddings)})."
                     )
 
-                # D. Store in ChromaDB
-                db_service.add_chunks_to_chroma(doc_id, filename, content_hash, chunks, all_embeddings, collection_name=collection)
+                # D. Store in ChromaDB with dual-storage access tags
+                db_service.add_chunks_to_chroma(
+                    doc_id=doc_id,
+                    filename=filename,
+                    content_hash=content_hash,
+                    chunks=chunks,
+                    embeddings=all_embeddings,
+                    collection_name=collection,
+                    allowed_roles=final_access_list,
+                    uploader_username=username,
+                    uploader_role=uploader_canonical_role
+                )
 
                 # E. Update status to completed
                 db_service.update_document_status(doc_id, "completed", len(chunks))
@@ -146,9 +230,12 @@ def upload_documents(
                     filename=filename,
                     status="success",
                     document_id=doc_id,
-                    chunks=len(chunks)
+                    chunks=len(chunks),
+                    allowed_roles=final_access_list,
+                    uploader_username=username,
+                    uploader_role=uploader_canonical_role
                 ))
-                logger.info("Successfully ingested document: %s (ID: %s)", filename, doc_id)
+                logger.info("Successfully ingested document: %s (ID: %s, roles: %s)", filename, doc_id, final_access_list)
 
             except Exception as e:
                 logger.error("Failed to ingest document %s: %s", filename, e, exc_info=True)
@@ -160,6 +247,9 @@ def upload_documents(
                 failed_statuses.append(UploadStatus(
                     filename=filename,
                     status="failure",
+                    allowed_roles=final_access_list,
+                    uploader_username=username,
+                    uploader_role=uploader_canonical_role,
                     error=str(e)
                 ))
                 
@@ -174,8 +264,8 @@ def upload_documents(
         success_files = [u.filename for u in uploaded_statuses]
         failed_files = [f.filename for f in failed_statuses]
         audit_logger.info(
-            "User: %s | Role: %s | Endpoint: POST /admin/upload | Success: True | Details: Ingested %d files successfully (%s), %d files failed (%s)",
-            username, role, len(success_files), str(success_files), len(failed_files), str(failed_files)
+            "User: %s | Role: %s | Endpoint: POST /admin/upload | Success: True | Details: Ingested %d files successfully (%s), %d files failed (%s) | Access: %s (auto: %s, selected: %s)",
+            username, role, len(success_files), str(success_files), len(failed_files), str(failed_files), str(final_access_list), str(auto_roles), str(selected_roles)
         )
         return UploadResponse(uploaded=uploaded_statuses, failed=failed_statuses)
 
@@ -193,7 +283,7 @@ def upload_documents(
         raise e
 
 @router.get("/documents", response_model=List[DocumentMetadata])
-def list_documents(collection: Optional[str] = None, current_user: dict = Depends(require_admin)):
+def list_documents(collection: Optional[str] = None, current_user: dict = Depends(require_upload_permission)):
     """List all ingested documents with metadata, optionally filtered by collection."""
     username = current_user["username"]
     role = current_user["role"]
@@ -220,7 +310,10 @@ def list_documents(collection: Optional[str] = None, current_user: dict = Depend
                 upload_date=doc["upload_date"],
                 chunk_count=doc["chunk_count"],
                 status=doc["status"],
-                collection_name=doc.get("collection_name", "company_knowledge_base_gemini_3072")
+                collection_name=doc.get("collection_name", "company_knowledge_base_gemini_3072"),
+                allowed_roles=doc.get("allowed_roles") or [],
+                uploader_username=doc.get("uploader_username") or "Unknown",
+                uploader_role=doc.get("uploader_role") or "Unknown"
             )
             for doc in docs
         ]
@@ -295,3 +388,174 @@ def debug_config(current_user: dict = Depends(require_admin)):
         "llm_service_configured": llm_service.client_configured,
         "env_keys": env_keys
     }
+
+# ==========================================
+# Phase 11 & 14: Dynamic Role Management Endpoints
+# ==========================================
+
+@router.get("/roles/below-me", response_model=List[RoleResponse])
+def get_roles_below_me(current_user: dict = Depends(require_upload_permission)):
+    """
+    Returns roles with a higher hierarchy_position than the current user (valid downline options).
+    Accessible to any user with upload permissions.
+    """
+    username = current_user["username"]
+    role = current_user["role"]
+    logger.info("User '%s' (role: '%s') requested roles below them in the hierarchy.", username, role)
+    try:
+        roles_below = db_service.get_roles_below(role)
+        return [RoleResponse(**r) for r in roles_below]
+    except Exception as e:
+        logger.error("Failed to list downline roles for '%s': %s", role, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list downline roles: {str(e)}"
+        )
+
+@router.get("/roles", response_model=List[RoleResponse])
+def get_roles(current_user: dict = Depends(require_admin)):
+    """
+    List all roles ordered by hierarchy_position ascending (admin only).
+    """
+    username = current_user["username"]
+    role = current_user["role"]
+    logger.info("User '%s' (role: '%s') requested roles list.", username, role)
+    try:
+        roles = db_service.list_roles()
+        return [RoleResponse(**r) for r in roles]
+    except Exception as e:
+        logger.error("Failed to list roles: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list roles: {str(e)}"
+        )
+
+@router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
+def create_role(
+    payload: RoleCreateRequest,
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Create a new role, positioning it and shifting lower roles down (admin only).
+    """
+    username = current_user["username"]
+    role = current_user["role"]
+    logger.info("User '%s' (role: '%s') requested creation of role '%s'.", username, role, payload.role_name)
+    try:
+        new_role = db_service.create_role(
+            role_name=payload.role_name,
+            insert_below_role_id=payload.insert_below_role_id,
+            can_upload=payload.can_upload,
+            role_id=payload.role_id
+        )
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: POST /admin/roles | Success: True | Details: Created role '%s' (ID: %s, Position: %d)",
+            username, role, new_role["role_name"], new_role["role_id"], new_role["hierarchy_position"]
+        )
+        return RoleResponse(**new_role)
+    except ValueError as ve:
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: POST /admin/roles | Success: False | Details: %s",
+            username, role, str(ve)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        logger.error("Failed to create role: %s", e, exc_info=True)
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: POST /admin/roles | Success: False | Details: Internal error: %s",
+            username, role, str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create role: {str(e)}"
+        )
+
+@router.patch("/roles/{role_id}", response_model=RoleResponse)
+def update_role(
+    role_id: str,
+    payload: RoleUpdateRequest,
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Update role name, upload permissions, or hierarchy position (admin only).
+    """
+    username = current_user["username"]
+    role = current_user["role"]
+    logger.info("User '%s' (role: '%s') requested update of role '%s'.", username, role, role_id)
+    try:
+        updated = db_service.update_role(
+            role_id=role_id,
+            role_name=payload.role_name,
+            can_upload=payload.can_upload,
+            insert_below_role_id=payload.insert_below_role_id,
+            hierarchy_position=payload.hierarchy_position
+        )
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: PATCH /admin/roles/%s | Success: True | Details: Updated role '%s' (Position: %d)",
+            username, role, role_id, updated["role_name"], updated["hierarchy_position"]
+        )
+        return RoleResponse(**updated)
+    except ValueError as ve:
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: PATCH /admin/roles/%s | Success: False | Details: %s",
+            username, role, role_id, str(ve)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        logger.error("Failed to update role '%s': %s", role_id, e, exc_info=True)
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: PATCH /admin/roles/%s | Success: False | Details: Internal error: %s",
+            username, role, role_id, str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update role: {str(e)}"
+        )
+
+@router.delete("/roles/{role_id}", response_model=RoleDeleteResponse)
+def delete_role(
+    role_id: str,
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Delete a role if not protected and not assigned to any user (admin only).
+    """
+    username = current_user["username"]
+    role = current_user["role"]
+    logger.info("User '%s' (role: '%s') requested deletion of role '%s'.", username, role, role_id)
+    try:
+        db_service.delete_role(role_id=role_id)
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: DELETE /admin/roles/%s | Success: True | Details: Role deleted",
+            username, role, role_id
+        )
+        return RoleDeleteResponse(
+            success=True,
+            message=f"Role '{role_id}' was successfully deleted.",
+            deleted_role_id=role_id
+        )
+    except ValueError as ve:
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: DELETE /admin/roles/%s | Success: False | Details: %s",
+            username, role, role_id, str(ve)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(ve)
+        )
+    except Exception as e:
+        logger.error("Failed to delete role '%s': %s", role_id, e, exc_info=True)
+        audit_logger.info(
+            "User: %s | Role: %s | Endpoint: DELETE /admin/roles/%s | Success: False | Details: Internal error: %s",
+            username, role, role_id, str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete role: {str(e)}"
+        )
